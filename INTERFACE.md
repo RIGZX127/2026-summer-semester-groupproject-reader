@@ -449,3 +449,144 @@ class FeedUrl:
 ---
 
 *最后更新：Phase 1 交付 — 2026-07-12 · 成员 A*
+
+
+---
+
+## Phase 2 新增接口（2026-07-12 更新）
+
+---
+
+## 9. ReaderPipeline — Reader 管线接口（成员 C 专用）
+
+```python
+from core.reader.pipeline import ReaderPipeline, RenderedContent, ReaderFetchError
+from app.state import state
+```
+
+### `async build(entry_id, request_id=None) -> RenderedContent`
+
+构建单篇文章的 Reader 视图（Fetch → Extract → Convert → Render → Cache）。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `entry_id` | `int` | 文章 ID |
+| `request_id` | `str \| None` | 调用方传入的唯一标识，原样返回，防止快速切换时渲染过期结果 |
+
+- 返回：`RenderedContent`（含 `html` 可直接传给 `QWebEngineView.setHtml()`）
+- 缓存命中时 `from_cache=True`，不重新抓取
+- HTTP 错误 / 网络错误时抛 `ReaderFetchError`
+
+```python
+pipeline = ReaderPipeline(state.db)
+
+@asyncSlot()
+async def on_entry_selected(self, entry_id: int) -> None:
+    import uuid
+    req_id = str(uuid.uuid4())
+    self._pending_req = req_id
+    try:
+        result = await pipeline.build(entry_id, request_id=req_id)
+    except ReaderFetchError:
+        self._show_error(); return
+    if self._pending_req != req_id:
+        return  # 用户已切换文章，丢弃过期结果
+    self.web_view.setHtml(result.html)
+```
+
+### RenderedContent dataclass
+
+```python
+@dataclass
+class RenderedContent:
+    entry_id: int
+    html: str           # 直接传给 QWebEngineView.setHtml()
+    title: str          # readability 提取的标题（通常比 RSS 标题更准确）
+    byline: str         # 作者信息（可为空字符串）
+    from_cache: bool    # True = 命中缓存
+    request_id: str | None
+```
+
+---
+
+## 10. EntryStore 扩展方法（Phase 2.2 新增）
+
+以下方法已追加到 Phase 1 的 `EntryStore`。
+
+### `async mark_read(entry_id) -> None`
+### `async mark_unread(entry_id) -> None`
+
+```python
+await entry_store.mark_read(42)
+await entry_store.mark_unread(42)
+```
+
+---
+
+### `async batch_mark_read(feed_id, only_before=None) -> int`
+
+批量标记全读，返回实际标记数量。
+
+```python
+# 全部标记已读
+count = await entry_store.batch_mark_read(feed_id=1)
+# 仅标记某时间前的
+count = await entry_store.batch_mark_read(feed_id=1, only_before="2024-06-01T00:00:00Z")
+# 完成后刷新角标
+new_count = await feed_store.unread_count(feed_id)
+```
+
+---
+
+### `async toggle_star(entry_id) -> bool`
+
+切换收藏状态，返回新状态（`True` = 已收藏）。
+
+```python
+is_starred = await entry_store.toggle_star(entry_id)
+star_btn.setChecked(is_starred)  # 直接用返回值更新按钮
+```
+
+---
+
+### `async search(query, feed_id=None, limit=50, offset=0) -> list[EntryListItem]`
+
+全局或限定 Feed 内的关键词搜索（标题 + 摘要，不区分大小写）。
+
+```python
+# 搜索全部
+results = await entry_store.search("Python")
+# 限定 Feed
+results = await entry_store.search("Python", feed_id=1)
+# 分页
+page2  = await entry_store.search("Python", limit=20, offset=20)
+```
+
+---
+
+### `async soft_delete(entry_id) -> None`
+
+软删除：`is_deleted=1`，物理数据保留，列表和搜索自动过滤。
+
+```python
+await entry_store.soft_delete(entry_id)
+# 之后 list_by_feed / search 均不再返回该文章
+# 但 get(entry_id) 仍可访问（is_deleted=True）
+```
+
+---
+
+## 11. ContentStore（通常不直接调用）
+
+```python
+from store.content_store import ContentStore, ContentRow
+```
+
+成员 B/C **通常不需要直接调用**。Reader 管线的缓存读写由 `ReaderPipeline` 内部处理。
+仅在需要**强制刷新**某篇文章缓存时使用：
+
+```python
+content_store = ContentStore(state.db)
+await content_store.delete_by_entry(entry_id)
+# 之后 pipeline.build(entry_id) 会重新抓取
+```
