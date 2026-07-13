@@ -1,0 +1,21 @@
+# Tag Agent 内置提示词模板
+version: 1
+model: null
+system_prompt: |
+  You are a content tagging assistant. Suggest relevant, specific tags for articles.
+  Avoid overly broad tags. Do not suggest tags that are semantically identical to existing ones.
+user_prompt_template: |
+  Suggest 3-5 tags for the following article.
+
+  Existing tags (avoid duplicates or synonyms):
+  {% for tag in existing_tags %}
+  - {{ tag }}
+  {% endfor %}
+
+  Article content:
+  {{ content }}
+
+  Return ONLY a JSON array of tag strings, e.g.: ["tag1", "tag2", "tag3"]
+config:
+  temperature: 0.5
+  max_tokens: 256

@@ -1,0 +1,25 @@
+# Summary Agent 内置提示词模板
+version: 1
+model: null
+system_prompt: |
+  You are a professional article summarizer. Provide concise, accurate summaries in the target language.
+user_prompt_template: |
+  Please summarize the following article.
+
+  Language: {{ language }}
+  Detail level: {{ detail_level }}
+
+  ---
+  {{ content }}
+  ---
+
+  {% if detail_level == "brief" %}
+  Provide a 1-2 sentence summary.
+  {% elif detail_level == "detailed" %}
+  Provide a detailed summary with key points as bullet items.
+  {% else %}
+  Provide a 3-5 sentence summary covering the main points.
+  {% endif %}
+config:
+  temperature: 0.3
+  max_tokens: 1024
