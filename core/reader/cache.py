@@ -1,39 +1,54 @@
-# core/reader/cache.py
-"""版本化缓存检查器。
+﻿# core/reader/cache.py
+"""Reader 管线缓存层：版本号匹配逻辑。
 
-每个管线阶段维护一个版本常量。修改阶段逻辑时递增对应版本号，
-已缓存的旧版本内容将自动失效并重新处理。
+检查 content 表中缓存是否与当前算法版本一致；
+一致则命中，否则返回 None 触发重新抓取。
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from store.content_store import ContentRow, ContentStore
+
 if TYPE_CHECKING:
-    from store.content_store import ContentRow
-
-READER_VERSION = 1
-MARKDOWN_VERSION = 1
-RENDER_VERSION = 1
+    from store.db import DatabaseManager
 
 
-def is_cache_valid(cached: ContentRow | None) -> bool:
-    """检查缓存的管线结果是否仍然有效。
+class ReaderCache:
+    def __init__(self, db: DatabaseManager) -> None:
+        self._store = ContentStore(db)
 
-    三个版本必须全部匹配才视为有效。
-    """
-    if cached is None:
-        return False
-    return (
-        cached.reader_version == READER_VERSION
-        and cached.markdown_version == MARKDOWN_VERSION
-        and cached.render_version == RENDER_VERSION
-    )
+    async def get(
+        self,
+        entry_id: int,
+        reader_version: int,
+        markdown_version: int,
+    ) -> ContentRow | None:
+        """精确匹配版本号。任意不一致返回 None（缓存失效）。"""
+        row = await self._store.get_by_entry(entry_id)
+        if row is None:
+            return None
+        if row.reader_version == reader_version and row.markdown_version == markdown_version:
+            return row
+        return None
 
-
-def get_cache_versions() -> dict[str, int]:
-    """返回当前所有管线版本号，供日志/调试使用。"""
-    return {
-        "reader_version": READER_VERSION,
-        "markdown_version": MARKDOWN_VERSION,
-        "render_version": RENDER_VERSION,
-    }
+    async def save(
+        self,
+        entry_id: int,
+        source_html: str,
+        cleaned_html: str,
+        markdown: str,
+        reader_version: int,
+        markdown_version: int,
+        render_version: int,
+    ) -> ContentRow:
+        """写入或覆盖缓存记录。"""
+        return await self._store.upsert(
+            entry_id=entry_id,
+            source_html=source_html,
+            cleaned_html=cleaned_html,
+            markdown=markdown,
+            reader_version=reader_version,
+            markdown_version=markdown_version,
+            render_version=render_version,
+        )

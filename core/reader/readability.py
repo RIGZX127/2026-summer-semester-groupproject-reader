@@ -1,92 +1,39 @@
-"""Readability 正文提取封装。
+﻿# core/reader/readability.py
+"""正文提取：对 readability-lxml 的薄封装。
 
-对 readability-lxml 的 Document 做薄封装，仅返回清洗后的 HTML、标题和作者。
+同步函数，由 pipeline.py 用 run_in_executor 调用。
+若提取结果正文字符数 < 100，cleaned_html 置为空字符串（触发 pipeline 回退逻辑）。
 """
 from __future__ import annotations
 
-from bs4 import BeautifulSoup
-from readability import Document
+from dataclasses import dataclass
 
 
-class ReadabilityError(Exception):
-    """正文提取失败时抛出。"""
+@dataclass
+class ExtractedContent:
+    cleaned_html: str
+    title: str
+    byline: str
 
 
-def _extract_byline_from_meta(html: str) -> str:
-    """用 BeautifulSoup 从 HTML meta 标签中提取作者信息。
-
-    依次检查: author, article:author, byline, dc.creator。
-    """
-    soup = BeautifulSoup(html, "lxml")
-    # 有 name 属性的 meta
-    for name_attr in ("author", "byline", "dc.creator"):
-        tag = soup.find("meta", attrs={"name": name_attr})
-        if tag and tag.get("content"):
-            return tag["content"].strip()
-
-    # 有 property 属性的 meta (og / article)
-    for prop_attr in ("article:author", "og:author"):
-        tag = soup.find("meta", attrs={"property": prop_attr})
-        if tag and tag.get("content"):
-            return tag["content"].strip()
-
-    # Twitter Card
-    tag = soup.find("meta", attrs={"name": "twitter:creator"})
-    if tag and tag.get("content"):
-        return tag["content"].strip()
-
-    return ""
-
-
-def extract_content(html: str, url: str = "") -> tuple[str, str, str]:
-    """从 HTML 中提取正文内容。
-
-    Args:
-        html: 原始 HTML 字符串。
-        url: 文章 URL（用于相对路径解析）。
-
-    Returns:
-        (cleaned_html, title, byline) 三元组。
-
-    Raises:
-        ReadabilityError: 提取失败或结果为空。
-    """
+def extract(html: str, url: str = "") -> ExtractedContent:
+    """从原始 HTML 中提取正文。失败时返回全空字段而非抛异常。"""
+    if not html:
+        return ExtractedContent("", "", "")
     try:
+        from readability import Document  # type: ignore[import]
         doc = Document(html, url=url)
-        cleaned_html = doc.summary()
+        cleaned = doc.summary(html_partial=False)
         title = doc.title() or ""
-    except Exception as exc:
-        raise ReadabilityError(
-            f"readability-lxml extraction failed: {exc}"
-        ) from exc
-
-    if not cleaned_html:
-        raise ReadabilityError(
-            "Extracted content is empty"
-        )
-
-    # 测量纯文本长度而非 HTML 标记长度
-    text = BeautifulSoup(cleaned_html, "lxml").get_text().strip()
-    if len(text) < 50:
-        raise ReadabilityError(
-            "Extracted content is empty or too short (< 50 chars)"
-        )
-
-    # 优先使用 readability 自带的 author 方法
-    byline = ""
-    try:
-        raw_author = (doc.author() or "").strip()
-        # readability 返回 '[no-author]' 表示未找到作者
-        if raw_author and raw_author != "[no-author]":
-            byline = raw_author
-    except Exception:
-        pass
-
-    # 如果 readability 没有提取到作者，回退到 BeautifulSoup 解析 meta 标签
-    if not byline:
-        try:
-            byline = _extract_byline_from_meta(html)
-        except Exception:
-            pass
-
-    return (cleaned_html, title, byline)
+        byline = ""
+        # readability 部分版本在 metadata 中提供 author
+        meta = getattr(doc, "metadata", None)
+        if meta and isinstance(meta, dict):
+            byline = meta.get("author", "") or ""
+        # 内容太短视为提取失败
+        text_len = len(cleaned.replace("<", " ").replace(">", " ").split())
+        if text_len < 20:
+            return ExtractedContent("", title, byline)
+        return ExtractedContent(cleaned_html=cleaned, title=title, byline=byline)
+    except Exception:  # noqa: BLE001
+        return ExtractedContent("", "", "")

@@ -157,3 +157,137 @@ class EntryStore:
     async def guid_exists(self, feed_id: int, guid: str) -> bool:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_guid_exists, feed_id, guid)
+
+    # ══════════════════════════════════════════════════════════════════
+    #  Phase 2.2 — 文章管理扩展
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── 内部同步方法 ──────────────────────────────────────────────────
+
+    def _sync_mark_read(self, entry_id: int, value: int) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE entries SET is_read = ? WHERE id = ?", (value, entry_id)
+            )
+
+    def _sync_batch_mark_read(self, feed_id: int, only_before: str | None) -> int:
+        sql = (
+            "UPDATE entries SET is_read = 1 "
+            "WHERE feed_id = ? AND is_deleted = 0 AND is_read = 0"
+        )
+        params: list = [feed_id]
+        if only_before is not None:
+            sql += " AND published_at <= ?"
+            params.append(only_before)
+        with self._conn:
+            cur = self._conn.execute(sql, params)
+        return cur.rowcount
+
+    def _sync_toggle_star(self, entry_id: int) -> bool:
+        row = self._conn.execute(
+            "SELECT is_starred FROM entries WHERE id = ?", (entry_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        new_value = 1 - row["is_starred"]
+        with self._conn:
+            self._conn.execute(
+                "UPDATE entries SET is_starred = ? WHERE id = ?", (new_value, entry_id)
+            )
+        return bool(new_value)
+
+    def _sync_search(
+        self,
+        query: str,
+        feed_id: int | None,
+        limit: int,
+        offset: int,
+    ) -> list[EntryListItem]:
+        if not query:
+            # 空查询等价于列出全部（feed_id 限定范围）
+            if feed_id is not None:
+                sql = (
+                    "SELECT id, feed_id, title, summary, author, published_at, "
+                    "is_read, is_starred FROM entries "
+                    "WHERE feed_id = ? AND is_deleted = 0 "
+                    "ORDER BY published_at DESC LIMIT ? OFFSET ?"
+                )
+                rows = self._conn.execute(sql, (feed_id, limit, offset)).fetchall()
+            else:
+                sql = (
+                    "SELECT id, feed_id, title, summary, author, published_at, "
+                    "is_read, is_starred FROM entries "
+                    "WHERE is_deleted = 0 "
+                    "ORDER BY published_at DESC LIMIT ? OFFSET ?"
+                )
+                rows = self._conn.execute(sql, (limit, offset)).fetchall()
+        else:
+            pattern = f"%{query}%"
+            if feed_id is not None:
+                sql = (
+                    "SELECT id, feed_id, title, summary, author, published_at, "
+                    "is_read, is_starred FROM entries "
+                    "WHERE (title LIKE ? OR summary LIKE ?) "
+                    "AND is_deleted = 0 AND feed_id = ? "
+                    "ORDER BY published_at DESC LIMIT ? OFFSET ?"
+                )
+                rows = self._conn.execute(sql, (pattern, pattern, feed_id, limit, offset)).fetchall()
+            else:
+                sql = (
+                    "SELECT id, feed_id, title, summary, author, published_at, "
+                    "is_read, is_starred FROM entries "
+                    "WHERE (title LIKE ? OR summary LIKE ?) AND is_deleted = 0 "
+                    "ORDER BY published_at DESC LIMIT ? OFFSET ?"
+                )
+                rows = self._conn.execute(sql, (pattern, pattern, limit, offset)).fetchall()
+        return [_row_to_list_item(r) for r in rows]
+
+    def _sync_soft_delete(self, entry_id: int) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE entries SET is_deleted = 1 WHERE id = ?", (entry_id,)
+            )
+
+    # ── 公开 async 方法 ───────────────────────────────────────────────
+
+    async def mark_read(self, entry_id: int) -> None:
+        """将单篇文章标记为已读。entry_id 不存在时静默忽略。"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._sync_mark_read, entry_id, 1)
+
+    async def mark_unread(self, entry_id: int) -> None:
+        """将单篇文章标记为未读。entry_id 不存在时静默忽略。"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._sync_mark_read, entry_id, 0)
+
+    async def batch_mark_read(
+        self, feed_id: int, only_before: str | None = None
+    ) -> int:
+        """批量标记 feed_id 下所有未读文章为已读。返回实际标记的数量。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, self._sync_batch_mark_read, feed_id, only_before
+        )
+
+    async def toggle_star(self, entry_id: int) -> bool:
+        """切换收藏状态。返回操作后的新状态（True=已收藏）。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_toggle_star, entry_id)
+
+    async def search(
+        self,
+        query: str,
+        feed_id: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[EntryListItem]:
+        """在标题和摘要中搜索关键词（LIKE，不区分大小写）。支持分页。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, self._sync_search, query, feed_id, limit, offset
+        )
+
+    async def soft_delete(self, entry_id: int) -> None:
+        """软删除：is_deleted=1，物理数据保留。entry_id 不存在时静默忽略。"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._sync_soft_delete, entry_id)

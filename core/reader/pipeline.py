@@ -1,143 +1,189 @@
-# core/reader/pipeline.py
-"""Reader 管线：将原始文章数据加工为 Agent 可消费的 RenderedContent。
+﻿# core/reader/pipeline.py
+"""Reader 管线：Fetch -> Extract -> Convert -> Render -> Cache。
 
-G2.1 冻结接口：RenderedContent 和 ReaderPipeline.build()。
-
-流程
-  1. 检查缓存（ContentStore.get + is_cache_valid）——有效且含 markdown 则直接返回
-  2. 获取 Entry（EntryStore.get）——不存在则抛 ValueError
-  3. HTTP 请求（httpx）——获取原始 HTML
-  4. 正文提取（readability）——CPU 密集，在 executor 中执行
-  5. HTML → Markdown 转换（markdownify）——CPU 密集，在 executor 中执行
-  6. 写缓存（ContentStore.upsert）
-  7. 返回 RenderedContent
+对外唯一接口：ReaderPipeline.build(entry_id, request_id=None)
+返回 RenderedContent，可直接传给 QWebEngineView.setHtml()。
 """
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import httpx
 
+from core.reader.cache import ReaderCache
+from core.reader import markdown as md_module
+from core.reader import readability as rd_module
+from store.content_store import ContentStore
+from store.entry_store import EntryStore
+
 if TYPE_CHECKING:
     from store.db import DatabaseManager
 
-from core.reader.cache import (
-    MARKDOWN_VERSION,
-    READER_VERSION,
-    RENDER_VERSION,
-    is_cache_valid,
-)
-from core.reader.markdown import html_to_markdown
-from core.reader.readability import ReadabilityError, extract_content
-from store.content_store import ContentStore
-from store.entry_store import EntryStore
+# ── 版本常量（算法升级时递增，触发缓存失效）────────────────────────────
+READER_VERSION   = 1
+MARKDOWN_VERSION = 1
+RENDER_VERSION   = 1
+
+_USER_AGENT = "Mercury-Reader/1.0"
+
+
+class ReaderFetchError(Exception):
+    """网络或 HTTP 错误。"""
+
+    def __init__(self, message: str, entry_id: int, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.entry_id = entry_id
+        self.status_code = status_code
 
 
 @dataclass
 class RenderedContent:
-    """G2.1 冻结接口：管线最终产物。"""
-
-    html: str  # 渲染就绪的清洗后 HTML
+    entry_id: int
+    html: str              # mistune 渲染后的 HTML，直接传给 QWebEngineView.setHtml()
     title: str
     byline: str
-    markdown: str  # 清洗后的 Markdown（供 Agent 消费）
-    from_cache: bool  # True 表示缓存命中，未发起网络请求
+    from_cache: bool
+    request_id: str | None = field(default=None)
+
+
+def _render_markdown(markdown_text: str) -> str:
+    """用 mistune 将 Markdown 渲染为 HTML。"""
+    import mistune  # type: ignore[import]
+    renderer = mistune.HTMLRenderer()
+    md = mistune.create_markdown(
+        renderer=renderer,
+        plugins=["table", "strikethrough", "url"],
+    )
+    return md(markdown_text)
+
+
+def _fallback_html(title: str, summary: str) -> str:
+    """readability 提取失败时的简单回退 HTML。"""
+    safe_title   = title.replace("<", "&lt;").replace(">", "&gt;")
+    safe_summary = summary.replace("<", "&lt;").replace(">", "&gt;")
+    return f"<h1>{safe_title}</h1><p>{safe_summary}</p>"
 
 
 class ReaderPipeline:
-    """串联缓存检查 -> 获取 -> 提取 -> 转换 -> 缓存的管线。"""
-
     def __init__(self, db: DatabaseManager) -> None:
+        self._entry_store   = EntryStore(db)
+        self._cache         = ReaderCache(db)
         self._content_store = ContentStore(db)
-        self._entry_store = EntryStore(db)
 
-    async def build(self, entry_id: int) -> RenderedContent:
-        """对指定 entry_id 执行完整管线，返回 RenderedContent。
-
-        Args:
-            entry_id: 文章 ID。
-
-        Returns:
-            RenderedContent 实例。
-
-        Raises:
-            ValueError: entry_id 对应的文章不存在。
-            httpx.RequestError: 网络请求失败（由调用方处理）。
+    async def build(
+        self,
+        entry_id: int,
+        request_id: str | None = None,
+    ) -> RenderedContent:
         """
-        # ── Step 1: 缓存检查 ────────────────────────────────────────────
-        cached = await self._content_store.get(entry_id)
-        if cached is not None and is_cache_valid(cached) and cached.markdown is not None:
-            # 缓存命中：仅需轻量 DB 读取获取标题/作者，无网络请求
-            entry = await self._entry_store.get(entry_id)
-            if entry is None:
-                raise ValueError(f"Entry {entry_id} not found")
-            return RenderedContent(
-                html=cached.cleaned_html or "",
-                title=entry.title,
-                byline=entry.author,
-                markdown=cached.markdown,
-                from_cache=True,
-            )
+        构建单篇文章的 Reader 视图。
 
-        # ── Step 2: 获取 Entry ──────────────────────────────────────────
+        1. 检查缓存 → 命中直接渲染返回
+        2. Fetch 原始 HTML
+        3. readability 提取正文
+        4. markdownify 转 Markdown
+        5. mistune 渲染为 HTML
+        6. 写入缓存
+        """
+        loop = asyncio.get_event_loop()
+
+        # ── 0. 取文章基本信息 ───────────────────────────────────────────
         entry = await self._entry_store.get(entry_id)
         if entry is None:
-            raise ValueError(f"Entry {entry_id} not found")
+            raise ReaderFetchError(
+                f"Entry {entry_id} not found", entry_id=entry_id
+            )
 
-        # ── Step 3: 网络请求 ────────────────────────────────────────────
-        source_html: str | None = None
+        # ── 1. 检查缓存 ─────────────────────────────────────────────────
+        cached = await self._cache.get(entry_id, READER_VERSION, MARKDOWN_VERSION)
+        if cached and cached.markdown:
+            rendered_html = await loop.run_in_executor(
+                None, _render_markdown, cached.markdown
+            )
+            return RenderedContent(
+                entry_id=entry_id,
+                html=rendered_html,
+                title=entry.title,
+                byline="",
+                from_cache=True,
+                request_id=request_id,
+            )
+
+        # ── 2. Fetch ─────────────────────────────────────────────────────
+        source_html = ""
         if entry.url:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(entry.url, follow_redirects=True)
-                response.raise_for_status()
-                source_html = response.text
-
-        # ── Step 4: 正文提取（CPU 密集，在 executor 中运行）─────────────
-        loop = asyncio.get_running_loop()
-        if source_html:
             try:
-                cleaned_html, title, byline = await asyncio.wait_for(
-                    loop.run_in_executor(None, extract_content, source_html, entry.url or ""),
-                    timeout=30.0,
-                )
-            except ReadabilityError:
-                # 提取失败 → 回退到 feed 摘要
-                cleaned_html = entry.summary
-                title = entry.title
-                byline = entry.author
-        else:
-            # 无原文 → 直接使用 feed 摘要
-            cleaned_html = entry.summary
-            title = entry.title
-            byline = entry.author
+                async with httpx.AsyncClient(
+                    follow_redirects=True,
+                    timeout=15.0,
+                    headers={"User-Agent": _USER_AGENT},
+                ) as client:
+                    response = await client.get(entry.url)
+                    response.raise_for_status()
+                    source_html = response.text
+            except httpx.HTTPStatusError as exc:
+                raise ReaderFetchError(
+                    f"HTTP {exc.response.status_code} for {entry.url}",
+                    entry_id=entry_id,
+                    status_code=exc.response.status_code,
+                ) from exc
+            except httpx.RequestError as exc:
+                raise ReaderFetchError(
+                    f"Network error for {entry.url}: {exc}",
+                    entry_id=entry_id,
+                ) from exc
 
-        # ── Step 5: HTML → Markdown 转换（CPU 密集）─────────────────────
+        # ── 3. Extract（readability）────────────────────────────────────
+        if source_html:
+            extracted = await loop.run_in_executor(
+                None, rd_module.extract, source_html, entry.url or ""
+            )
+            cleaned_html = extracted.cleaned_html
+            title        = extracted.title or entry.title
+            byline       = extracted.byline
+        else:
+            cleaned_html = ""
+            title        = entry.title
+            byline       = ""
+
+        # ── 4. Convert（markdownify）── 回退：用 summary ─────────────────
         if cleaned_html:
-            markdown = await asyncio.wait_for(
-                loop.run_in_executor(None, html_to_markdown, cleaned_html),
-                timeout=30.0,
+            markdown_text = await loop.run_in_executor(
+                None, md_module.html_to_markdown, cleaned_html
             )
         else:
-            markdown = ""
+            # 提取失败：用 summary 生成简单 HTML，不缓存
+            fallback = _fallback_html(title, entry.summary)
+            return RenderedContent(
+                entry_id=entry_id,
+                html=fallback,
+                title=title,
+                byline=byline,
+                from_cache=False,
+                request_id=request_id,
+            )
 
-        # ── Step 6: 写缓存 ──────────────────────────────────────────────
-        await self._content_store.upsert(
+        # ── 5. Render（mistune）─────────────────────────────────────────
+        rendered_html = await loop.run_in_executor(None, _render_markdown, markdown_text)
+
+        # ── 6. 写缓存 ────────────────────────────────────────────────────
+        await self._cache.save(
             entry_id=entry_id,
             source_html=source_html,
-            cleaned_html=cleaned_html or None,
-            markdown=markdown or None,
+            cleaned_html=cleaned_html,
+            markdown=markdown_text,
             reader_version=READER_VERSION,
             markdown_version=MARKDOWN_VERSION,
             render_version=RENDER_VERSION,
         )
 
-        # ── Step 7: 返回 ────────────────────────────────────────────────
         return RenderedContent(
-            html=cleaned_html or "",
+            entry_id=entry_id,
+            html=rendered_html,
             title=title,
             byline=byline,
-            markdown=markdown or "",
             from_cache=False,
+            request_id=request_id,
         )
