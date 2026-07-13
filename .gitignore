@@ -1,0 +1,42 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 测试 / 覆盖率缓存
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 数据库文件（本地数据，不进仓库）
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时脚本（开发用）
+verify.py
+add_slides.py
+test_load.py

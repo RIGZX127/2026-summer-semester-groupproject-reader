@@ -1,0 +1,41 @@
+[project]
+name = "mercury-cross"
+version = "0.1.0"
+description = "Cross-platform RSS reader — Python + PySide6"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.5",
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "readability-lxml>=0.8",
+    "markdownify>=0.13",
+    "mistune>=3.0",
+    "openai>=1.30",
+    "jinja2>=3.1",
+    "qasync>=0.27",
+    "keyring>=25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-qt>=4.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
