@@ -27,6 +27,7 @@ MARKDOWN_VERSION = 1
 RENDER_VERSION   = 1
 
 _USER_AGENT = "Mercury-Reader/1.0"
+_EXECUTOR_TIMEOUT = 30.0   # run_in_executor 的统一超时（秒）
 
 
 class ReaderFetchError(Exception):
@@ -45,6 +46,7 @@ class RenderedContent:
     title: str
     byline: str
     from_cache: bool
+    markdown: str = field(default="")          # 问题1：暴露原始 Markdown，供 Agent 直接使用
     request_id: str | None = field(default=None)
 
 
@@ -64,6 +66,15 @@ def _fallback_html(title: str, summary: str) -> str:
     safe_title   = title.replace("<", "&lt;").replace(">", "&gt;")
     safe_summary = summary.replace("<", "&lt;").replace(">", "&gt;")
     return f"<h1>{safe_title}</h1><p>{safe_summary}</p>"
+
+
+async def _run_sync(fn, *args) -> object:
+    """在 executor 中运行同步函数，附带统一超时保护。问题2.2"""
+    loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
+    return await asyncio.wait_for(
+        loop.run_in_executor(None, fn, *args),
+        timeout=_EXECUTOR_TIMEOUT,
+    )
 
 
 class ReaderPipeline:
@@ -87,8 +98,6 @@ class ReaderPipeline:
         5. mistune 渲染为 HTML
         6. 写入缓存
         """
-        loop = asyncio.get_event_loop()
-
         # ── 0. 取文章基本信息 ───────────────────────────────────────────
         entry = await self._entry_store.get(entry_id)
         if entry is None:
@@ -99,15 +108,14 @@ class ReaderPipeline:
         # ── 1. 检查缓存 ─────────────────────────────────────────────────
         cached = await self._cache.get(entry_id, READER_VERSION, MARKDOWN_VERSION)
         if cached and cached.markdown:
-            rendered_html = await loop.run_in_executor(
-                None, _render_markdown, cached.markdown
-            )
+            rendered_html = await _run_sync(_render_markdown, cached.markdown)
             return RenderedContent(
                 entry_id=entry_id,
                 html=rendered_html,
                 title=entry.title,
                 byline="",
                 from_cache=True,
+                markdown=cached.markdown,       # 问题1：透传缓存的 markdown
                 request_id=request_id,
             )
 
@@ -137,9 +145,7 @@ class ReaderPipeline:
 
         # ── 3. Extract（readability）────────────────────────────────────
         if source_html:
-            extracted = await loop.run_in_executor(
-                None, rd_module.extract, source_html, entry.url or ""
-            )
+            extracted = await _run_sync(rd_module.extract, source_html, entry.url or "")
             cleaned_html = extracted.cleaned_html
             title        = extracted.title or entry.title
             byline       = extracted.byline
@@ -150,9 +156,7 @@ class ReaderPipeline:
 
         # ── 4. Convert（markdownify）── 回退：用 summary ─────────────────
         if cleaned_html:
-            markdown_text = await loop.run_in_executor(
-                None, md_module.html_to_markdown, cleaned_html
-            )
+            markdown_text = await _run_sync(md_module.html_to_markdown, cleaned_html)
         else:
             # 提取失败：用 summary 生成简单 HTML，不缓存
             fallback = _fallback_html(title, entry.summary)
@@ -162,11 +166,12 @@ class ReaderPipeline:
                 title=title,
                 byline=byline,
                 from_cache=False,
+                markdown="",                    # 回退路径无 markdown
                 request_id=request_id,
             )
 
         # ── 5. Render（mistune）─────────────────────────────────────────
-        rendered_html = await loop.run_in_executor(None, _render_markdown, markdown_text)
+        rendered_html = await _run_sync(_render_markdown, markdown_text)
 
         # ── 6. 写缓存 ────────────────────────────────────────────────────
         await self._cache.save(
@@ -185,5 +190,7 @@ class ReaderPipeline:
             title=title,
             byline=byline,
             from_cache=False,
+            markdown=markdown_text,             # 问题1：传出 markdown 字段
             request_id=request_id,
         )
+

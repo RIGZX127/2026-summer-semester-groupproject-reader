@@ -70,8 +70,9 @@ class ContentStore:
         render_version: int,
     ) -> ContentRow:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # 问题2.5：用 RETURNING * 把 INSERT/UPDATE 和 SELECT 合并为一次往返
         with self._conn:
-            self._conn.execute(
+            row = self._conn.execute(
                 """
                 INSERT INTO content
                     (entry_id, source_html, cleaned_html, markdown,
@@ -85,13 +86,11 @@ class ContentStore:
                     markdown_version = excluded.markdown_version,
                     render_version   = excluded.render_version,
                     fetched_at       = excluded.fetched_at
+                RETURNING *
                 """,
                 (entry_id, source_html, cleaned_html, markdown,
                  reader_version, markdown_version, render_version, now),
-            )
-        row = self._conn.execute(
-            "SELECT * FROM content WHERE entry_id = ?", (entry_id,)
-        ).fetchone()
+            ).fetchone()
         return _row_to_content(row)
 
     def _sync_delete_by_entry(self, entry_id: int) -> None:
@@ -103,7 +102,7 @@ class ContentStore:
     # ── 公开 async 方法 ───────────────────────────────────────────────────
 
     async def get_by_entry(self, entry_id: int) -> ContentRow | None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
         return await loop.run_in_executor(None, self._sync_get_by_entry, entry_id)
 
     async def upsert(
@@ -116,7 +115,7 @@ class ContentStore:
         markdown_version: int,
         render_version: int,
     ) -> ContentRow:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
         return await loop.run_in_executor(
             None,
             self._sync_upsert,
@@ -125,5 +124,6 @@ class ContentStore:
         )
 
     async def delete_by_entry(self, entry_id: int) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
         await loop.run_in_executor(None, self._sync_delete_by_entry, entry_id)
+
