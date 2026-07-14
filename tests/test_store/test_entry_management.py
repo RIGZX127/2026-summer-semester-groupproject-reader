@@ -7,8 +7,8 @@ import pytest
 
 async def _setup(db):
     """创建 feed + 3 篇文章（1 已读，2 未读），返回 (feed, entries)。"""
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     es = EntryStore(db)
     e1 = await es.add(feed.id, "g1", None, "Python Tutorial", "Learn Python programming", "Alice", "2024-01-01T00:00:00Z")
@@ -69,8 +69,8 @@ async def test_batch_mark_read_returns_correct_count(db) -> None:
 
 @pytest.mark.asyncio
 async def test_batch_mark_read_only_affects_target_feed(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     fs = FeedStore(db)
     feed1 = await fs.add("https://a.com/feed")
     feed2 = await fs.add("https://b.com/feed")
@@ -163,8 +163,8 @@ async def test_search_case_insensitive(db) -> None:
 
 @pytest.mark.asyncio
 async def test_search_with_feed_id_scope(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     fs = FeedStore(db)
     feed1 = await fs.add("https://a.com/feed")
     feed2 = await fs.add("https://b.com/feed")

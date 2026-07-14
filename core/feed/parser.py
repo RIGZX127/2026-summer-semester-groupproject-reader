@@ -38,7 +38,7 @@ def _time_struct_to_iso(ts) -> str | None:
         return None
     try:
         epoch = calendar.timegm(ts)
-        dt = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=epoch)
+        dt = datetime.datetime(1970, 1, 1, tzinfo=datetime.UTC) + datetime.timedelta(seconds=epoch)
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception:
         return None

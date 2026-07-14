@@ -13,9 +13,8 @@ import asyncio
 import sys
 import traceback
 
-from PySide6.QtWidgets import QApplication
-
 import qasync
+from PySide6.QtWidgets import QApplication
 
 from app.app import MercuryApp
 

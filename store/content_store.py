@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -69,7 +69,7 @@ class ContentStore:
         markdown_version: int,
         render_version: int,
     ) -> ContentRow:
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         # 问题2.5：用 RETURNING * 把 INSERT/UPDATE 和 SELECT 合并为一次往返
         with self._conn:
             row = self._conn.execute(

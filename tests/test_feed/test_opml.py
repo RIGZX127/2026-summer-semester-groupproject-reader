@@ -6,7 +6,7 @@ import pathlib
 
 import pytest
 
-from core.feed.opml import FeedUrl, export_opml, import_opml
+from core.feed.opml import export_opml, import_opml
 
 FIXTURE_DIR = pathlib.Path(__file__).parent
 FIXTURE_OPML = (FIXTURE_DIR / "fixture_opml.xml").read_text(encoding="utf-8")

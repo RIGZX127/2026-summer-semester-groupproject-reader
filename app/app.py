@@ -6,10 +6,9 @@ Phase 1 桩版本：仅打开一个空 QMainWindow，验证启动流程。
 from __future__ import annotations
 
 import pathlib
-import sys
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtWidgets import QLabel, QMainWindow
 
 from app.state import state
 from store.db import DatabaseManager

@@ -25,7 +25,8 @@ _SYNC_FAILED = -1  # sync_feed 失败哨兵返回值
 # ── 信号层：优先使用 PySide6，测试环境自动降级 ────────────────────────────
 
 try:
-    from PySide6.QtCore import QObject, Signal as QtSignal  # type: ignore[import]
+    from PySide6.QtCore import QObject  # type: ignore[import]
+    from PySide6.QtCore import Signal as QtSignal
 
     class SyncSignals(QObject):
         """Feed 同步进度信号集合（PySide6 实现）。"""

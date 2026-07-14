@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+
 import pytest
 
 from core.reader.cache import ReaderCache
@@ -16,8 +17,8 @@ FIXTURE_CLEAN = (FIXTURE_DIR / "fixture_clean.html").read_text(encoding="utf-8")
 
 @pytest.mark.asyncio
 async def test_cache_get_hit_on_matching_versions(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-c1", None, "T", "S", "", None)
     cache = ReaderCache(db)
@@ -29,8 +30,8 @@ async def test_cache_get_hit_on_matching_versions(db) -> None:
 
 @pytest.mark.asyncio
 async def test_cache_get_miss_on_reader_version_mismatch(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-c2", None, "T", "S", "", None)
     cache = ReaderCache(db)
@@ -41,8 +42,8 @@ async def test_cache_get_miss_on_reader_version_mismatch(db) -> None:
 
 @pytest.mark.asyncio
 async def test_cache_get_miss_on_markdown_version_mismatch(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-c3", None, "T", "S", "", None)
     cache = ReaderCache(db)

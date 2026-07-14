@@ -9,8 +9,8 @@ from store.content_store import ContentStore
 
 @pytest.mark.asyncio
 async def test_content_store_upsert_creates_row(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-1", None, "Title", "Summary", "", None)
     store = ContentStore(db)
@@ -23,8 +23,8 @@ async def test_content_store_upsert_creates_row(db) -> None:
 
 @pytest.mark.asyncio
 async def test_content_store_upsert_overwrites_existing(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-2", None, "Title", "Summary", "", None)
     store = ContentStore(db)
@@ -50,8 +50,8 @@ async def test_content_store_get_returns_none_for_missing(db) -> None:
 
 @pytest.mark.asyncio
 async def test_content_store_delete_removes_row(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-3", None, "Title", "Summary", "", None)
     store = ContentStore(db)

@@ -137,7 +137,7 @@ class AgentRuntime:
         run_id = uuid.uuid4().hex[:12]
 
         # 检查是否有同 agent_type 的排队任务，替换之
-        for i, (rid, eid, at) in enumerate(self._queue):
+        for i, (_rid, _eid, at) in enumerate(self._queue):
             if at == agent_type:
                 self._queue[i] = (run_id, entry_id, agent_type)
                 self._emit_status(run_id, entry_id, agent_type, "queued")

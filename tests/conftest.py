@@ -6,7 +6,7 @@ from __future__ import annotations
 # 项目根目录包含 platform/ 包，会遮蔽 Python 标准库的 platform 模块。
 # 在导入任何模块前，将标准库目录移到 sys.path 最前面，确保标准库优先。
 import sys as _sys
-import os as _os
+
 
 def _fix_stdlib_path() -> None:
     import sysconfig as _sc
@@ -21,11 +21,11 @@ def _fix_stdlib_path() -> None:
 _fix_stdlib_path()
 # ──────────────────────────────────────────────────────────────────────────────
 
-import pytest
+import pytest  # noqa: E402
 
-from store.db import DatabaseManager
-from store.feed_store import FeedStore
-from store.entry_store import EntryStore
+from store.db import DatabaseManager  # noqa: E402
+from store.entry_store import EntryStore  # noqa: E402
+from store.feed_store import FeedStore  # noqa: E402
 
 
 @pytest.fixture

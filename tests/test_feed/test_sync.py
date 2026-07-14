@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.feed.parser import EntryData, FeedData, FeedParseError
-from core.feed.sync import SyncService, _SYNC_FAILED
+from core.feed.sync import _SYNC_FAILED, SyncService
 
 
 def _make_feed_data(n: int = 3, prefix: str = "") -> FeedData:

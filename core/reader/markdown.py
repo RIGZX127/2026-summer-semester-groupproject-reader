@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 
-
 # 需要连同内容一起删除的标签（不只是删标签本身）
 _REMOVE_TAGS = {"script", "style", "nav", "footer", "header", "aside"}
 
@@ -19,8 +18,8 @@ def html_to_markdown(html: str) -> str:
     if not html:
         return ""
     try:
+        import markdownify  # type: ignore[import]
         from bs4 import BeautifulSoup  # type: ignore[import]
-        import markdownify             # type: ignore[import]
 
         # 1. 过滤 data: URI 图片（base64 内嵌图，避免巨量字符）
         html = re.sub(r'<img[^>]+src=["\']data:[^"\']*["\'][^>]*/?>', "", html)

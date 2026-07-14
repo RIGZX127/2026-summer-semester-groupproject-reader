@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from core.reader.cache import ReaderCache
 from core.reader import markdown as md_module
 from core.reader import readability as rd_module
+from core.reader.cache import ReaderCache
 from store.content_store import ContentStore
 from store.entry_store import EntryStore
 

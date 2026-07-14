@@ -8,8 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from core.reader.pipeline import (
-    MARKDOWN_VERSION,
-    READER_VERSION,
     ReaderFetchError,
     ReaderPipeline,
     RenderedContent,
@@ -33,8 +31,8 @@ def _mock_http(content: str = FIXTURE_HTML, status: int = 200):
 
 @pytest.mark.asyncio
 async def test_pipeline_full_run_returns_rendered_content(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p1", "https://example.com/article",
@@ -52,8 +50,8 @@ async def test_pipeline_full_run_returns_rendered_content(db) -> None:
 
 @pytest.mark.asyncio
 async def test_pipeline_cache_hit_skips_http(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p2", "https://example.com/article2",
@@ -75,8 +73,8 @@ async def test_pipeline_cache_hit_skips_http(db) -> None:
 
 @pytest.mark.asyncio
 async def test_pipeline_cache_miss_on_version_bump(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p3", "https://example.com/article3",
@@ -99,8 +97,9 @@ async def test_pipeline_cache_miss_on_version_bump(db) -> None:
 @pytest.mark.asyncio
 async def test_pipeline_fetch_404_raises_error(db) -> None:
     import httpx
-    from store.feed_store import FeedStore
+
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p4", "https://example.com/article4",
@@ -126,8 +125,9 @@ async def test_pipeline_fetch_404_raises_error(db) -> None:
 @pytest.mark.asyncio
 async def test_pipeline_network_error_raises_fetch_error(db) -> None:
     import httpx
-    from store.feed_store import FeedStore
+
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p5", "https://example.com/article5",
@@ -145,9 +145,9 @@ async def test_pipeline_network_error_raises_fetch_error(db) -> None:
 
 @pytest.mark.asyncio
 async def test_pipeline_empty_readability_falls_back(db) -> None:
-    from store.feed_store import FeedStore
-    from store.entry_store import EntryStore
     from core.reader.readability import ExtractedContent
+    from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p6", "https://example.com/article6",
@@ -165,8 +165,8 @@ async def test_pipeline_empty_readability_falls_back(db) -> None:
 
 @pytest.mark.asyncio
 async def test_pipeline_request_id_passed_through(db) -> None:
-    from store.feed_store import FeedStore
     from store.entry_store import EntryStore
+    from store.feed_store import FeedStore
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
         feed.id, "guid-p7", "https://example.com/article7",

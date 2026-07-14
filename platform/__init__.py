@@ -8,7 +8,6 @@ that rely on `platform.python_version()` continue to work correctly.
 from __future__ import annotations
 
 import importlib.util
-import sys
 import sysconfig
 
 # Load the real stdlib platform module by file path to avoid circular import.

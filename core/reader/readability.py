@@ -23,8 +23,8 @@ def extract(html: str, url: str = "") -> ExtractedContent:
     if not html:
         return ExtractedContent("", "", "")
     try:
+        from bs4 import BeautifulSoup  # type: ignore[import]
         from readability import Document  # type: ignore[import]
-        from bs4 import BeautifulSoup     # type: ignore[import]
 
         doc = Document(html, url=url)
         cleaned = doc.summary(html_partial=False)
