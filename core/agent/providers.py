@@ -154,3 +154,7 @@ class LLMRouter:
     @property
     def active_provider_name(self) -> str:
         return self._get_active().name
+
+    @property
+    def active_model_name(self) -> str:
+        return self._get_active().model
