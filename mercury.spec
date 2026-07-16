@@ -11,12 +11,15 @@ a = Analysis(
     [os.path.join(_root, "main.py")],
     pathex=[_root],
     binaries=[],
-    datas=[(os.path.join(_root, "resources", "prompts"), "resources/prompts")],
+    datas=[
+        (os.path.join(_root, "resources", "prompts"),   "resources/prompts"),
+        (os.path.join(_root, "resources", "templates"), "resources/templates"),
+    ],
     hiddenimports=[
         "qasync", "keyring.backends.fail", "keyring.backends.macOS",
         "keyring.backends.Windows", "readability", "markdownify",
         "mistune", "feedparser", "bs4", "lxml", "httpx", "openai",
-        "jinja2", "yaml",
+        "jinja2", "jinja2.ext", "yaml",
     ],
     hookspath=[],
     hooksconfig={},

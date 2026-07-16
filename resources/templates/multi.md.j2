@@ -1,0 +1,23 @@
+﻿# Digest — {{ date }}
+
+> 共 {{ entries | length }} 篇文章
+
+---
+
+{% for entry in entries %}
+## {{ loop.index }}. {{ entry.title }}
+
+- **来源**：[{{ entry.feed_title }}]({{ entry.url }})
+- **作者**：{{ entry.author }}
+- **发布时间**：{{ entry.published_at }}
+{% if entry.tags %}- **标签**：{{ entry.tags | join(", ") }}{% endif %}
+
+{{ entry.summary }}
+
+{% if entry.notes %}
+> 📝 **笔记**：{{ entry.notes }}
+{% endif %}
+
+---
+
+{% endfor %}

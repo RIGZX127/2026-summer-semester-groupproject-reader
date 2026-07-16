@@ -1,0 +1,22 @@
+﻿---
+title: "{{ title | replace('"', '\\"') }}"
+date: {{ published_at }}
+author: "{{ author }}"
+source: "{{ url }}"
+feed: "{{ feed_title }}"
+tags: [{% for t in tags %}"{{ t }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+---
+
+{{ summary }}
+
+<!-- more -->
+
+{{ content_markdown }}
+
+{% if notes %}
+---
+
+## 📝 笔记
+
+{{ notes }}
+{% endif %}

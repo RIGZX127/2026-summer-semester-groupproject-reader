@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev", "feature/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # ── Lint (Ruff) ─────────────────────────────────────────────────────
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ruff
+        run: pip install ruff>=0.4
+
+      - name: Run Ruff
+        run: ruff check .
+
+  # ── Tests (matrix: Windows / macOS / Linux) ─────────────────────────
+  test:
+    name: Test (${{ matrix.os }})
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # ── Linux: install Qt/XCB system deps ─────────────────────────
+      - name: Install Qt system deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-0 libgl1-mesa-glx libegl1 \
+            libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 \
+            libxcb-xfixes0 libdbus-1-3 libfontconfig1 libfreetype6 \
+            xvfb
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # ── Linux: run tests inside virtual display (Xvfb) ────────────
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          xvfb-run --auto-servernum pytest -v --tb=short
+
+      # ── macOS / Windows: run tests directly ───────────────────────
+      - name: Run tests (macOS / Windows)
+        if: runner.os != 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          pytest -v --tb=short
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            .pytest_cache/
+            *.log
