@@ -1,13 +1,11 @@
 """Tests for TagAgent — tag suggestion, parsing, normalization, dedup."""
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from core.agent.tagging import TagAgent, TagAgentError
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -178,7 +176,7 @@ async def test_register_adds_handler() -> None:
     from core.agent.runtime import AgentRuntime
 
     # Need a fresh runtime for test isolation
-    runtime = AgentRuntime()
+    AgentRuntime()
     # Reset singleton for test
     AgentRuntime._instance = None
     runtime2 = AgentRuntime()

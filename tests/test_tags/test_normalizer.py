@@ -1,8 +1,6 @@
 """Tests for TagNormalizer."""
 from __future__ import annotations
 
-import pytest
-
 from core.tags.normalizer import TagNormalizer, normalize
 
 

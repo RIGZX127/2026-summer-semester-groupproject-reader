@@ -130,7 +130,7 @@ def parse_args() -> _Args:
 
 def _bootstrap(args: _Args):
     """初始化所有依赖并注册 Agent。"""
-    from core.agent.providers import ProviderConfig, LLMRouter
+    from core.agent.providers import LLMRouter, ProviderConfig
     from core.agent.runtime import AgentRuntime
     from core.agent.summary import SummaryAgent
     from core.agent.tagging import TagAgent
@@ -242,12 +242,11 @@ def cmd_configure(args: _Args) -> None:
         print(f"   API Key:  {'*' * min(len(args.api_key), 8)}…")
     print()
     print("现在可以直接运行测试（无需 --base-url 和 --model）：")
-    print(f"  python tools/agent_cli.py verify-all <ID>")
+    print("  python tools/agent_cli.py verify-all <ID>")
 
 
 def cmd_list(ctx: dict) -> None:
     """列出数据库中所有文章。"""
-    import sqlite3
     conn = ctx["db"].connection
     rows = conn.execute(
         """SELECT e.id, e.title, e.url, e.author, f.title as feed_title
@@ -270,7 +269,7 @@ def cmd_list(ctx: dict) -> None:
         feed = (feed or "未知")[:18]
         print(f"{eid:<6} {title:<50} {feed:<20}")
     print(f"\n共 {len(rows)} 篇文章。用以下命令测试：")
-    print(f"  python tools/agent_cli.py summary <ID> --base-url <URL> --model <NAME>")
+    print("  python tools/agent_cli.py summary <ID> --base-url <URL> --model <NAME>")
 
 
 def cmd_summary(ctx: dict, args: _Args) -> None:
@@ -348,7 +347,7 @@ def cmd_translate(ctx: dict, args: _Args) -> None:
     elapsed = time.time() - start
 
     if result:
-        print(f"[OK] 翻译完成")
+        print("[OK] 翻译完成")
         print(f"   段落总数: {result.get('paragraphs_total', 0)}")
         print(f"   成功: {result.get('paragraphs_success', 0)}")
         print(f"   失败: {result.get('paragraphs_failed', 0)}")
@@ -386,7 +385,7 @@ def cmd_tagging(ctx: dict, args: _Args) -> None:
         tags = result.get("tags", [])
         raw = result.get("raw_tags", [])
         existing = result.get("existing_tags", [])
-        print(f"[OK] 标签生成完成")
+        print("[OK] 标签生成完成")
         print(f"   已有标签: {existing}")
         print(f"   原始建议: {raw}")
         print(f"   最终标签: {tags}")
@@ -504,7 +503,7 @@ async def _wait_for_completion(
 
     try:
         await asyncio.wait_for(done_event.wait(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print(f"[TIMEOUT] 超时（{timeout}s），任务仍在运行")
         runtime.cancel(run_id)
         return None

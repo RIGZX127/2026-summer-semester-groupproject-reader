@@ -29,7 +29,6 @@ from typing import Any
 
 import jinja2
 
-
 # ── 内置模板目录（相对于本文件向上两级到仓库根）─────────────────────
 _BUILTIN_TEMPLATE_DIR = (
     pathlib.Path(__file__).parent.parent.parent / "resources" / "templates"
