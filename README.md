@@ -95,6 +95,22 @@ python main.py
 
 ### 🍎 macOS
 
+#### 方式 A：下载 DMG 包（推荐，普通用户）
+
+1. 前往 [GitHub Releases](https://github.com/RIGZX127/2026-summer-semester-groupproject-reader/releases) 下载最新的 `Mercury-macos-xxx.dmg`
+2. 双击 `.dmg` 文件挂载
+3. 将 **Mercury** 拖入 **Applications** 文件夹
+4. 首次打开：在 Applications 中**右键 Mercury → 打开**（未签名需确认一次，仅首次）
+
+> **提示**：若系统提示「已损坏，无法打开」，在终端执行后重试：
+> ```bash
+> xattr -cr /Applications/Mercury.app
+> ```
+
+---
+
+#### 方式 B：从源码运行（开发者）
+
 ```bash
 # 1. 安装 Homebrew（若未安装）
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -112,12 +128,7 @@ pip install -e ".[dev]"
 python main.py
 ```
 
-> **Apple Silicon (M1/M2/M3) 用户**：PySide6 已原生支持 arm64，无需 Rosetta。  
-> **首次运行安全提示**：若系统提示"无法验证开发者"，请前往 **系统设置 → 隐私与安全性** 允许运行，或执行：
-> ```bash
-> xattr -cr /Applications/Mercury.app
-> ```
-
+> **Apple Silicon (M1/M2/M3) 用户**：PySide6 已原生支持 arm64，无需 Rosetta。
 ---
 
 ### 🐧 Linux
