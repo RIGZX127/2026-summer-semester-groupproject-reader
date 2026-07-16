@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QListView,
     QListWidget,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from store.feed_store import FeedRow
+from ui.icons import sidebar_icon
 
 _TITLE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 _COUNT_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -26,6 +28,8 @@ class Sidebar(QWidget):
     feed_selected = Signal(int)
     add_feed_requested = Signal()
     sync_requested = Signal(int)
+    ai_settings_requested = Signal()
+    collapse_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -35,6 +39,18 @@ class Sidebar(QWidget):
 
         title = QLabel("Mercury")
         title.setObjectName("AppTitle")
+        self.collapse_button = QPushButton()
+        self.collapse_button.setObjectName("SidebarCollapseButton")
+        self.collapse_button.setIcon(sidebar_icon())
+        self.collapse_button.setIconSize(QSize(18, 18))
+        self.collapse_button.setFixedSize(32, 32)
+        self.collapse_button.setAccessibleName(self.tr("隐藏订阅源栏"))
+        self.collapse_button.setToolTip(self.tr("隐藏订阅源栏"))
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(self.collapse_button)
         self.add_button = QPushButton(self.tr("＋ 添加订阅"))
         self.add_button.setAccessibleName(self.tr("添加订阅源"))
         self.add_button.setToolTip(self.tr("添加新的 RSS、Atom 或 JSON Feed"))
@@ -56,19 +72,40 @@ class Sidebar(QWidget):
         self.feed_list.setResizeMode(QListView.ResizeMode.Adjust)
         self.feed_list.setUniformItemSizes(False)
 
+        self.ai_card = QWidget()
+        self.ai_card.setObjectName("AIWorkspaceCard")
+        ai_title = QLabel(self.tr("AI 工作台"))
+        ai_title.setObjectName("AIWorkspaceTitle")
+        self.ai_description = QLabel(self.tr("配置模型，使用文章摘要与全文翻译"))
+        self.ai_description.setObjectName("AIWorkspaceDescription")
+        self.ai_description.setWordWrap(True)
+        self.ai_button = QPushButton(self.tr("打开 AI 工作台"))
+        self.ai_button.setObjectName("AIWorkspaceButton")
+        self.ai_button.setAccessibleName(self.tr("打开 AI 提供者和 Agent 设置"))
+        self.ai_button.setToolTip(self.tr("配置模型、自动摘要和翻译选项"))
+        ai_layout = QVBoxLayout(self.ai_card)
+        ai_layout.setContentsMargins(12, 12, 12, 12)
+        ai_layout.setSpacing(6)
+        ai_layout.addWidget(ai_title)
+        ai_layout.addWidget(self.ai_description)
+        ai_layout.addWidget(self.ai_button)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 22, 18, 18)
         layout.setSpacing(12)
-        layout.addWidget(title)
+        layout.addLayout(header)
         layout.addSpacing(8)
         layout.addWidget(self.add_button)
         layout.addSpacing(8)
         layout.addWidget(section)
         layout.addWidget(self.feed_list, 1)
+        layout.addWidget(self.ai_card)
         layout.addWidget(self.sync_button)
 
         self.add_button.clicked.connect(self.add_feed_requested)
         self.sync_button.clicked.connect(self._request_sync)
+        self.ai_button.clicked.connect(self.ai_settings_requested)
+        self.collapse_button.clicked.connect(self.collapse_requested)
         self.feed_list.currentItemChanged.connect(self._on_current_item_changed)
 
     def set_feeds(self, rows: list[tuple[FeedRow, int]]) -> None:

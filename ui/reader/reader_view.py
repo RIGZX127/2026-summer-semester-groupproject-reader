@@ -1,8 +1,9 @@
-"""Reader, original web page, and split-mode container."""
+"""Reader, original web page, split mode, and Phase 3 Agent surfaces."""
 
 from __future__ import annotations
 
 import html
+import json
 
 from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
@@ -40,11 +41,12 @@ class ReaderView(QWidget):
         super().__init__(parent)
         self.setObjectName("ContentSurface")
         self.setMinimumWidth(380)
-        self.app_theme_controller = ThemeController(settings, parent=self)
-        self.theme_manager = ThemeManager(settings, self.app_theme_controller.palette)
+        self._settings = settings or QSettings()
+        self._agent_runtime = agent_runtime
+        self.app_theme_controller = ThemeController(self._settings, parent=self)
+        self.theme_manager = ThemeManager(self._settings, self.app_theme_controller.palette)
         self.theme_manager.set_palette(
-            self.app_theme_controller.palette,
-            self.app_theme_controller.effective_theme,
+            self.app_theme_controller.palette, self.app_theme_controller.effective_theme
         )
         self.toolbar = ReaderToolbar(self.theme_manager.theme)
         self.toolbar.set_theme_preference(self.app_theme_controller.preference)
@@ -52,7 +54,17 @@ class ReaderView(QWidget):
         self.current_mode = "reader"
         self.current_url: str | None = None
         self.last_html = ""
+        self._original_fragment = ""
+        self._bilingual_fragment = ""
+        self._translated_fragment = ""
+        self._translation_mode = "original"
+        self._active_translation_run_id: str | None = None
         self._current_entry_id: int | None = None
+
+        self._auto_summary_timer = QTimer(self)
+        self._auto_summary_timer.setSingleShot(True)
+        self._auto_summary_timer.setInterval(1000)
+        self._auto_summary_timer.timeout.connect(self._trigger_auto_summary)
 
         self.stack = QStackedWidget()
         self.empty_page = self._message_page(
@@ -67,7 +79,7 @@ class ReaderView(QWidget):
         )
 
         self.reader_web_view = QWebEngineView()
-        self.web_view = self.reader_web_view  # Phase 1 compatibility
+        self.web_view = self.reader_web_view
         self.reader_web_view.setPage(ExternalLinkPage(self.reader_web_view))
         reader_settings = self.reader_web_view.settings()
         reader_settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, False)
@@ -101,16 +113,33 @@ class ReaderView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.toolbar)
-        layout.addWidget(self.stack, 1)
-        layout.addWidget(self.summary_panel)
+        self.reader_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.reader_splitter.setObjectName("ReaderSummarySplitter")
+        self.reader_splitter.setChildrenCollapsible(False)
+        self.reader_splitter.addWidget(self.stack)
+        self.reader_splitter.addWidget(self.summary_panel)
+        self.reader_splitter.setStretchFactor(0, 1)
+        self.reader_splitter.setStretchFactor(1, 0)
+        layout.addWidget(self.reader_splitter, 1)
 
         self.toolbar.mode_changed.connect(self.set_mode)
         self.toolbar.font_size_changed.connect(self._set_font_size)
         self.toolbar.theme_preference_changed.connect(self.app_theme_controller.set_preference)
         self.app_theme_controller.theme_changed.connect(self._on_app_theme_changed)
         self.toolbar.content_width_changed.connect(self._set_content_width)
-        self.summary_panel.generate_requested.connect(self._request_summary)
+        self.toolbar.translation_requested.connect(self._request_translation)
+        self.toolbar.translation_cancel_requested.connect(self._cancel_translation)
+        self.toolbar.translation_mode_changed.connect(self.set_translation_mode)
+        self.summary_panel.expanded_changed.connect(self._on_summary_expanded)
+        if self._agent_runtime is not None:
+            self._agent_runtime.signals.state_changed.connect(self._on_agent_state_changed)
+            self._agent_runtime.signals.chunk_received.connect(self._on_agent_chunk)
         self.show_empty()
+        splitter_state = self._settings.value("ui/reader/vertical_splitter")
+        if splitter_state is not None:
+            self.reader_splitter.restoreState(splitter_state)
+        else:
+            self.reader_splitter.setSizes([720, 48])
         QTimer.singleShot(0, self.app_theme_controller.apply)
 
     def _message_page(self, title: str, message: str, retry: bool = False) -> QWidget:
@@ -135,13 +164,22 @@ class ReaderView(QWidget):
         return page
 
     def show_empty(self) -> None:
+        self._auto_summary_timer.stop()
+        self.toolbar.set_article_available(False)
         self.stack.setCurrentWidget(self.empty_page)
 
     def show_loading(self) -> None:
+        self._auto_summary_timer.stop()
         self.stack.setCurrentWidget(self.loading_page)
 
-    def show_content(self, rendered_html: str, url: str | None, entry_id: int | None = None) -> None:
+    def show_content(
+        self, rendered_html: str, url: str | None, entry_id: int | None = None
+    ) -> None:
         self.current_url = url
+        self._original_fragment = rendered_html
+        self._bilingual_fragment = ""
+        self._translated_fragment = ""
+        self._translation_mode = "original"
         self.last_html = self.theme_manager.wrap_html(rendered_html)
         self.reader_web_view.setHtml(self.last_html)
         if url:
@@ -153,7 +191,12 @@ class ReaderView(QWidget):
         self.stack.setCurrentWidget(self.content_stack)
         if entry_id is not None:
             self._current_entry_id = entry_id
+            self._active_translation_run_id = None
             self.summary_panel.set_entry(entry_id)
+            self.toolbar.set_translation_state("idle")
+            self.toolbar.show_translation_modes(False)
+            self.toolbar.set_article_available(True)
+            self._schedule_auto_summary()
 
     def show_entry(self, entry: EntryRow) -> None:
         title = html.escape(entry.title or self.tr("无标题"))
@@ -164,6 +207,7 @@ class ReaderView(QWidget):
             f'<h1>{title}</h1><div class="meta">{author} · {date}</div>'
             f'<div class="summary"><p>{summary}</p></div>',
             entry.url,
+            entry.id,
         )
 
     def show_fallback(self, entry: EntryRow, message: str) -> None:
@@ -174,15 +218,12 @@ class ReaderView(QWidget):
             f'<p role="alert"><strong>{safe_message}</strong></p>'
             f"<h1>{safe_title}</h1><p>{safe_summary}</p>",
             entry.url,
+            entry.id,
         )
 
     def show_web_fallback(self, entry: EntryRow) -> None:
-        """httpx 被网站拦截时，降级到 QWebEngineView 直显原网页。"""
         if not entry.url:
-            self.show_fallback(
-                entry,
-                self.tr("Reader 模式不可用且该文章无原文链接。"),
-            )
+            self.show_fallback(entry, self.tr("Reader 模式不可用且该文章无原文链接。"))
             return
         self.current_url = entry.url
         self.last_html = ""
@@ -191,6 +232,9 @@ class ReaderView(QWidget):
         self.current_mode = "web"
         self._apply_mode()
         self.stack.setCurrentWidget(self.content_stack)
+        self._current_entry_id = entry.id
+        self.summary_panel.set_entry(entry.id)
+        self.toolbar.set_article_available(True)
 
     def show_error(self, message: str) -> None:
         labels = self.error_page.findChildren(QLabel)
@@ -207,22 +251,20 @@ class ReaderView(QWidget):
     def _apply_mode(self) -> None:
         self.reader_web_view.setVisible(self.current_mode in {"reader", "split"})
         self.web_stack.setVisible(self.current_mode in {"web", "split"})
-        if self.current_mode == "reader":
-            self.splitter.setSizes([1, 0])
-        elif self.current_mode == "web":
-            self.splitter.setSizes([0, 1])
-        else:
-            self.splitter.setSizes([1, 1])
+        self.splitter.setSizes(
+            [1, 0]
+            if self.current_mode == "reader"
+            else [0, 1]
+            if self.current_mode == "web"
+            else [1, 1]
+        )
         self.content_stack.setCurrentWidget(self.splitter)
 
     def _rerender_reader(self) -> None:
-        if not self.last_html:
-            return
-        body_start = self.last_html.find("<body>")
-        body_end = self.last_html.rfind("</body>")
-        fragment = self.last_html[body_start + 6 : body_end] if body_start >= 0 else self.last_html
-        self.last_html = self.theme_manager.wrap_html(fragment)
-        self.reader_web_view.setHtml(self.last_html)
+        fragment = self._fragment_for_translation_mode()
+        if fragment:
+            self.last_html = self.theme_manager.wrap_html(fragment)
+            self.reader_web_view.setHtml(self.last_html)
 
     def _set_font_size(self, value: int) -> None:
         self.theme_manager.set_font_size(value)
@@ -237,14 +279,103 @@ class ReaderView(QWidget):
         self.theme_manager.set_content_width(value)
         self._rerender_reader()
 
-    def _request_summary(self, entry_id: int) -> None:
-        """Forward summary request to AgentRuntime."""
-        from app.state import state
+    @property
+    def active_translation_run_id(self) -> str | None:
+        return self._active_translation_run_id
 
-        if state.agent_runtime is not None:
+    def _schedule_auto_summary(self) -> None:
+        self._auto_summary_timer.stop()
+        if self._settings.value("agent/auto_summary", False, type=bool):
+            self._auto_summary_timer.start()
+
+    def _trigger_auto_summary(self) -> None:
+        if self._current_entry_id is not None:
+            self.summary_panel.request_auto_generate()
+
+    def _request_translation(self) -> None:
+        if self._agent_runtime is None or self._current_entry_id is None:
+            self.toolbar.set_translation_state("error")
+            return
+        try:
+            self._active_translation_run_id = self._agent_runtime.submit(
+                self._current_entry_id, "translation"
+            )
+        except Exception:  # noqa: BLE001
+            self.toolbar.set_translation_state("error")
+            return
+        self.toolbar.set_translation_state("queued")
+
+    def _cancel_translation(self) -> None:
+        if self._agent_runtime is not None and self._active_translation_run_id:
+            self._agent_runtime.cancel(self._active_translation_run_id)
+
+    def _on_agent_state_changed(self, event: object) -> None:
+        from core.agent.runtime import AgentUIEvent
+
+        evt: AgentUIEvent = event
+        if evt.agent_type != "translation" or evt.entry_id != self._current_entry_id:
+            return
+        if self._active_translation_run_id is None and evt.status in {"queued", "running"}:
+            self._active_translation_run_id = evt.run_id
+        if evt.run_id != self._active_translation_run_id:
+            return
+        self.toolbar.set_translation_state(evt.status, evt.progress)
+        if evt.status == "done" and evt.result_json:
             try:
-                state.agent_runtime.submit(entry_id, "summary")
-            except Exception:
-                self.summary_panel._status_label.setText(
-                    self.tr("❌ Agent 提交失败，请检查 LLM 配置")
-                )
+                result = json.loads(evt.result_json)
+            except (json.JSONDecodeError, TypeError):
+                result = {}
+            bilingual = str(result.get("html", ""))
+            if bilingual:
+                self._set_translation_html(bilingual)
+
+    def _on_agent_chunk(self, event: object) -> None:
+        from core.agent.runtime import AgentUIEvent
+
+        evt: AgentUIEvent = event
+        if (
+            evt.agent_type == "translation"
+            and evt.entry_id == self._current_entry_id
+            and evt.run_id == self._active_translation_run_id
+            and "mercury-trans-block" in evt.chunk
+        ):
+            self._set_translation_html(evt.chunk)
+
+    def _set_translation_html(self, bilingual_html: str) -> None:
+        from bs4 import BeautifulSoup
+
+        self._bilingual_fragment = bilingual_html
+        soup = BeautifulSoup(bilingual_html, "html.parser")
+        self._translated_fragment = "\n".join(
+            str(node) for node in soup.select(".mercury-translated")
+        )
+        self.toolbar.show_translation_modes(True)
+        self.set_translation_mode("bilingual")
+
+    def set_translation_mode(self, mode: str) -> None:
+        if mode not in {"original", "bilingual", "translated"}:
+            raise ValueError(f"Unknown translation mode: {mode}")
+        if mode != "original" and not self._bilingual_fragment:
+            return
+        self._translation_mode = mode
+        self.toolbar.set_translation_mode(mode)
+        self._rerender_reader()
+
+    def _fragment_for_translation_mode(self) -> str:
+        if self._translation_mode == "bilingual" and self._bilingual_fragment:
+            return self._bilingual_fragment
+        if self._translation_mode == "translated" and self._translated_fragment:
+            return self._translated_fragment
+        return self._original_fragment
+
+    def _on_summary_expanded(self, expanded: bool) -> None:
+        if not expanded:
+            return
+        sizes = self.reader_splitter.sizes()
+        if len(sizes) == 2 and sizes[1] < 140:
+            total = sum(sizes)
+            self.reader_splitter.setSizes([max(240, total - 200), 200])
+
+    def save_ui_state(self) -> None:
+        self._settings.setValue("ui/reader/vertical_splitter", self.reader_splitter.saveState())
+        self._settings.sync()

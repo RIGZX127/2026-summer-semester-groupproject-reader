@@ -33,15 +33,23 @@ class FakeEntryStore:
     async def list_by_feed(self, feed_id: int, limit: int = 50, offset: int = 0):
         await asyncio.sleep(self.delay_by_feed.get(feed_id, 0))
         return [
-            EntryListItem(
-                feed_id * 10, feed_id, f"Entry {feed_id}", "S", "A", "now", False, False
-            )
+            EntryListItem(feed_id * 10, feed_id, f"Entry {feed_id}", "S", "A", "now", False, False)
         ]
 
     async def get(self, entry_id: int):
         return EntryRow(
-            entry_id, 1, "g", None, "Entry", "Summary", "A", "now",
-            False, False, False, "now",
+            entry_id,
+            1,
+            "g",
+            None,
+            "Entry",
+            "Summary",
+            "A",
+            "now",
+            False,
+            False,
+            False,
+            "now",
         )
 
 
@@ -69,6 +77,34 @@ def test_main_window_has_three_columns_and_comfortable_minimum(tmp_path, qtbot) 
     assert window.splitter.count() == 3
     assert window.minimumWidth() >= 1024
     assert window.minimumHeight() >= 640
+
+
+def test_ai_menu_and_sidebar_open_settings(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    assert window.ai_menu.title() == "AI"
+    assert window.ai_settings_action.text() == "AI 设置…"
+    window.sidebar.ai_button.click()
+    assert window._settings_dialog is not None
+
+
+def test_reader_can_hide_sidebar_and_enter_focus_mode(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    window.sidebar.collapse_button.click()
+    assert window.sidebar.isHidden() is True
+    assert window.entry_list.isHidden() is False
+    assert window.reader_view.toolbar.sidebar_restore_button.isHidden() is False
+
+    window.reader_view.toolbar.focus_button.click()
+    assert window.sidebar.isHidden() is True
+    assert window.entry_list.isHidden() is True
+
+    window.reader_view.toolbar.focus_button.click()
+    assert window.sidebar.isHidden() is True
+    assert window.entry_list.isHidden() is False
+
+    window.reader_view.toolbar.sidebar_restore_button.click()
+    assert window.sidebar.isHidden() is False
+    assert window.reader_view.toolbar.sidebar_restore_button.isHidden() is True
 
 
 def test_load_feeds_populates_sidebar(tmp_path, qtbot) -> None:

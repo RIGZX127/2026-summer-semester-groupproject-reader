@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -28,6 +28,7 @@ class SummaryPanel(QFrame):
     """Collapsible panel displaying AI-generated article summary."""
 
     generate_requested = Signal(int)  # entry_id
+    expanded_changed = Signal(bool)
 
     def __init__(
         self,
@@ -41,9 +42,10 @@ class SummaryPanel(QFrame):
         self._active_run_id: str | None = None
         self._pending_text = ""
         self._collapsed = True
+        self._status = "idle"
 
         # ── Header bar ──────────────────────────────────────────────
-        self._header = QPushButton(self.tr("✨ AI 摘要"))
+        self._header = QPushButton(self.tr("AI 摘要"))
         self._header.setObjectName("SummaryHeader")
         self._header.setCheckable(True)
         self._header.setChecked(False)
@@ -57,7 +59,7 @@ class SummaryPanel(QFrame):
         self._generate_btn = QPushButton(self.tr("生成摘要"))
         self._generate_btn.setObjectName("SummaryGenerateBtn")
         self._generate_btn.setToolTip(self.tr("让 AI 为当前文章生成摘要"))
-        self._generate_btn.clicked.connect(self._request_generate)
+        self._generate_btn.clicked.connect(self._cancel_or_generate)
         self._generate_btn.hide()
 
         header_row = QHBoxLayout()
@@ -88,9 +90,7 @@ class SummaryPanel(QFrame):
         )
         self._content.hide()
 
-        self._placeholder = QLabel(
-            self.tr("点击「生成摘要」让 AI 帮你快速了解这篇文章的重点。")
-        )
+        self._placeholder = QLabel(self.tr("点击「生成摘要」让 AI 帮你快速了解这篇文章的重点。"))
         self._placeholder.setObjectName("SummaryPlaceholder")
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._placeholder.setWordWrap(True)
@@ -119,6 +119,14 @@ class SummaryPanel(QFrame):
 
     # ── Public API ──────────────────────────────────────────────────
 
+    @property
+    def active_run_id(self) -> str | None:
+        return self._active_run_id
+
+    @property
+    def status(self) -> str:
+        return self._status
+
     def set_entry(self, entry_id: int | None) -> None:
         """Reset panel for a new article entry."""
         self._entry_id = entry_id
@@ -130,6 +138,8 @@ class SummaryPanel(QFrame):
         self._placeholder.show()
         self._generate_btn.show()
         self._status_label.setText("")
+        self._status = "idle"
+        self._generate_btn.setText(self.tr("生成摘要"))
         self._collapsed = True
         self._header.setChecked(False)
         self._body.hide()
@@ -139,26 +149,61 @@ class SummaryPanel(QFrame):
     def _toggle(self) -> None:
         self._collapsed = not self._collapsed
         self._body.setVisible(not self._collapsed)
+        self.expanded_changed.emit(not self._collapsed)
 
     def _request_generate(self) -> None:
         if self._entry_id is None:
             return
         if self._runtime is None:
-            self._placeholder.setText(
-                self.tr("⚠️ AI Agent 未配置。请在设置中添加 LLM 提供者。")
-            )
+            self._placeholder.setText(self.tr("AI Agent 未配置。请在设置中添加 LLM 提供者。"))
             return
         self.generate_requested.emit(self._entry_id)
+        try:
+            self._active_run_id = self._runtime.submit(self._entry_id, "summary")
+        except Exception as exc:  # noqa: BLE001
+            self._set_status("error")
+            self._placeholder.setText(self.tr("任务提交失败：{0}").format(str(exc)))
+            self._placeholder.show()
+            return
         self._pending_text = ""
         self._content.clear()
         self._content.hide()
         self._placeholder.hide()
         self._progress.show()
         self._generate_btn.hide()
-        self._status_label.setText(self.tr("思考中…"))
+        self._set_status("queued")
         # auto-expand
         if self._collapsed:
             self._toggle()
+
+    def request_auto_generate(self) -> None:
+        """Start an automatic summary while retaining the same UI contract."""
+        self._request_generate()
+        if self._active_run_id is not None:
+            self._status_label.setText(self.tr("自动摘要已排队"))
+
+    def _cancel_or_generate(self) -> None:
+        if self._active_run_id and self._status in {"queued", "running"}:
+            if self._runtime is not None:
+                self._runtime.cancel(self._active_run_id)
+            return
+        self._request_generate()
+
+    def _set_status(self, status: str) -> None:
+        self._status = status
+        labels = {
+            "idle": "",
+            "queued": self.tr("排队中…"),
+            "running": self.tr("生成中…"),
+            "done": self.tr("摘要就绪"),
+            "error": self.tr("生成失败"),
+            "cancelled": self.tr("已取消"),
+        }
+        self._status_label.setText(labels[status])
+        busy = status in {"queued", "running"}
+        self._progress.setVisible(busy)
+        self._generate_btn.setText(self.tr("取消") if busy else self.tr("重新生成"))
+        self._generate_btn.setVisible(status != "idle" or self._entry_id is not None)
 
     def _on_state_changed(self, event: object) -> None:
         """Handle AgentUIEvent from AgentRuntime."""
@@ -168,33 +213,26 @@ class SummaryPanel(QFrame):
         if evt.entry_id != self._entry_id or evt.agent_type != "summary":
             return
 
-        if evt.status == "running":
+        if self._active_run_id is None and evt.status in {"queued", "running"}:
             self._active_run_id = evt.run_id
-            self._status_label.setText(self.tr("思考中…"))
-            self._progress.show()
+        if evt.run_id != self._active_run_id:
+            return
+
+        if evt.status in {"queued", "running"}:
+            self._set_status(evt.status)
         elif evt.status == "done":
-            self._active_run_id = None
-            self._progress.hide()
-            self._status_label.setText(self.tr("✅ 摘要就绪"))
-            self._generate_btn.setText(self.tr("重新生成"))
-            self._generate_btn.show()
+            self._set_status("done")
             if evt.result_json:
                 self._render_result(evt.result_json)
             elif self._pending_text:
                 self._render_text(self._pending_text)
         elif evt.status == "error":
-            self._active_run_id = None
-            self._progress.hide()
-            self._status_label.setText(self.tr("❌ 生成失败"))
-            self._generate_btn.show()
+            self._set_status("error")
             error_msg = evt.error or self.tr("未知错误")
-            self._placeholder.setText(f"⚠️ {error_msg}")
+            self._placeholder.setText(error_msg)
             self._placeholder.show()
         elif evt.status == "cancelled":
-            self._active_run_id = None
-            self._progress.hide()
-            self._status_label.setText(self.tr("已取消"))
-            self._generate_btn.show()
+            self._set_status("cancelled")
 
     def _on_chunk_received(self, event: object) -> None:
         """Stream partial summary text."""
@@ -202,6 +240,8 @@ class SummaryPanel(QFrame):
 
         evt: AgentUIEvent = event
         if evt.entry_id != self._entry_id or evt.agent_type != "summary":
+            return
+        if evt.run_id != self._active_run_id:
             return
         self._pending_text += evt.chunk
         self._render_text(self._pending_text)

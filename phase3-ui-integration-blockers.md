@@ -1,6 +1,33 @@
 # Phase 3 UI Integration Blockers
 
-> 最后更新：2026-07-16 | 状态：全部已解决 ✅
+> 最后更新：2026-07-16 | Phase 3 UI 接口已接通；下列跨模块问题待负责人确认
+
+## 0. UI completion summary
+
+- 新增 `ui/settings/provider_panel.py`、`agent_panel.py`、`settings_dialog.py`，并在主窗口“工具 → 设置”接入。
+- 摘要面板覆盖 `idle / queued / running / done / error / cancelled`，按 `entry_id + run_id` 丢弃过期事件，支持取消时保留已生成内容。
+- 自动摘要使用可取消的 1 秒单次 `QTimer`；快速切换文章只触发最后一篇。
+- 翻译 UI 显示排队、进度、取消、重试状态，并支持原文、双语、仅译文三种显示模式。
+- 新增 Phase 3 UI 回归测试：`tests/test_ui/test_phase3_settings.py`、`test_phase3_agent_ui.py`。
+
+## 0.1 Out-of-scope issue: Reader network fallback conflicts with its test
+
+**Observed:** `tests/test_reader/test_pipeline.py::test_pipeline_network_error_raises_fetch_error`
+expects a network failure to raise `ReaderFetchError`, but `core/reader/pipeline.py` falls back to
+`_fetch_via_webengine()` for the same failure. This also makes headless CI depend on desktop
+libraries such as `libXtst.so.6`.
+
+**Owner suggestion:** Reader/Core member.
+
+**Recommended decision:** Choose and document one contract: either preserve `ReaderFetchError`
+for generic connection failures, or update the test and mark WebEngine fallback as an integration
+test with the required Linux packages installed.
+
+## 0.2 Test environment requirement
+
+`pytest-qt` and `QWebEngineView` tests require Linux desktop runtime libraries. The current test
+container is missing `libEGL.so.1` and `libXtst.so.6`, so UI tests cannot create a Qt application.
+CI should install the Qt WebEngine runtime libraries and run UI tests with `QT_QPA_PLATFORM=offscreen`.
 
 ## 1. Provider configuration and startup registration ✅
 

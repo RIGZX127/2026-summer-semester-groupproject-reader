@@ -32,6 +32,25 @@ def test_sidebar_sync_state_has_text_not_only_color(qtbot) -> None:
     assert "同步中" in sidebar.feed_list.item(0).text()
 
 
+def test_sidebar_exposes_prominent_ai_workspace_entry(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+    assert sidebar.ai_button.text() == "打开 AI 工作台"
+    assert "摘要" in sidebar.ai_description.text()
+    assert "翻译" in sidebar.ai_description.text()
+    with qtbot.waitSignal(sidebar.ai_settings_requested, timeout=500):
+        sidebar.ai_button.click()
+
+
+def test_sidebar_header_has_icon_only_collapse_control(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+    assert sidebar.collapse_button.text() == ""
+    assert sidebar.collapse_button.accessibleName() == "隐藏订阅源栏"
+    with qtbot.waitSignal(sidebar.collapse_requested, timeout=500):
+        sidebar.collapse_button.click()
+
+
 def test_entry_list_keeps_content_while_loading(qtbot) -> None:
     view = EntryListWidget()
     qtbot.addWidget(view)
@@ -55,8 +74,18 @@ def test_reader_starts_with_instruction_and_escapes_entry(qtbot) -> None:
     qtbot.addWidget(view)
     assert "选择一篇文章" in view.empty_label.text()
     entry = EntryRow(
-        2, 1, "g", None, "<script>alert(1)</script>", "<b>safe</b>",
-        "A", None, False, False, False, "now",
+        2,
+        1,
+        "g",
+        None,
+        "<script>alert(1)</script>",
+        "<b>safe</b>",
+        "A",
+        None,
+        False,
+        False,
+        False,
+        "now",
     )
     view.show_entry(entry)
     assert "&lt;script&gt;" in view.last_html

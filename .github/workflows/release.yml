@@ -1,0 +1,94 @@
+name: Build Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Target platform"
+        required: true
+        type: choice
+        options: [macos, windows, all]
+        default: macos
+      create_release:
+        description: "Publish to GitHub Releases (public)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # ── macOS .dmg ────────────────────────────────────────────────────────
+  build-macos:
+    if: ${{ github.event_name == 'push' || inputs.platform == 'macos' || inputs.platform == 'all' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller
+          pip install -e .
+
+      - name: Build macOS .app
+        run: |
+          pyinstaller mercury.spec
+
+      - name: Package as DMG
+        run: |
+          APP="dist/Mercury.app"
+          DMG="dist/Mercury-macos-${GITHUB_REF_NAME:-snapshot}.dmg"
+          mkdir -p dist/dmg
+          cp -R "$APP" dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname "Mercury" -srcfolder dist/dmg \
+            -ov -format UDZO "$DMG"
+          echo "DMG=$DMG" >> $GITHUB_ENV
+
+      - name: Upload artifact (private)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercury-macos
+          path: dist/Mercury-macos-*.dmg
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.create_release || startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Mercury-macos-*.dmg
+          generate_release_notes: true
+
+  # ── Windows .exe ──────────────────────────────────────────────────────
+  build-windows:
+    if: ${{ inputs.platform == 'windows' || inputs.platform == 'all' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller
+          pip install -e .
+
+      - name: Build Windows .exe
+        run: |
+          pyinstaller mercury.spec
+
+      - name: Upload artifact (private)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercury-windows
+          path: dist/Mercury.exe

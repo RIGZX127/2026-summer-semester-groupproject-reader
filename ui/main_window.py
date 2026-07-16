@@ -7,7 +7,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QGuiApplication
+from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QSplitter
 from qasync import asyncSlot
 
@@ -17,6 +17,7 @@ from store.feed_store import DuplicateFeedError
 from ui.dialogs.add_feed_dialog import AddFeedDialog
 from ui.entry_list import EntryListWidget
 from ui.reader.reader_view import ReaderView
+from ui.settings.settings_dialog import SettingsDialog
 from ui.sidebar import Sidebar
 
 if TYPE_CHECKING:
@@ -48,17 +49,17 @@ class MainWindow(QMainWindow):
         self._feed_request_id: str | None = None
         self._entry_request_id: str | None = None
         self._add_dialog: AddFeedDialog | None = None
+        self._settings_dialog: SettingsDialog | None = None
         self._selected_entry_id: int | None = None
         self._search_query = ""
+        self._sidebar_visible_before_focus = True
 
         self.setWindowTitle(self.tr("Mercury RSS Reader"))
         self.setMinimumSize(1024, 640)
         self.resize(1280, 800)
         self.sidebar = Sidebar()
         self.entry_list = EntryListWidget()
-        self.reader_view = ReaderView(
-            settings=self._settings, agent_runtime=self._agent_runtime
-        )
+        self.reader_view = ReaderView(settings=self._settings, agent_runtime=self._agent_runtime)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.addWidget(self.sidebar)
@@ -70,9 +71,18 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.splitter)
         self.statusBar().showMessage(self.tr("准备就绪"))
 
+        self.ai_settings_action = QAction(self.tr("AI 设置…"), self)
+        self.ai_settings_action.setShortcut("Ctrl+,")
+        self.ai_settings_action.setToolTip(self.tr("配置 LLM、摘要和翻译"))
+        self.ai_settings_action.triggered.connect(self.open_settings_dialog)
+        self.ai_menu = self.menuBar().addMenu(self.tr("AI"))
+        self.ai_menu.addAction(self.ai_settings_action)
+
         self.sidebar.add_feed_requested.connect(self.open_add_feed_dialog)
         self.sidebar.feed_selected.connect(self._select_feed_slot)
         self.sidebar.sync_requested.connect(self._sync_feed_slot)
+        self.sidebar.ai_settings_requested.connect(self.open_settings_dialog)
+        self.sidebar.collapse_requested.connect(self._hide_sidebar)
         self.entry_list.entry_selected.connect(self._select_entry_slot)
         self.entry_list.retry_requested.connect(self._retry_entries)
         self.entry_list.search_requested.connect(self._search_entries_slot)
@@ -80,6 +90,8 @@ class MainWindow(QMainWindow):
         self.entry_list.star_requested.connect(self._toggle_star_slot)
         self.entry_list.delete_requested.connect(self._delete_entry_slot)
         self.reader_view.retry_requested.connect(self._retry_reader)
+        self.reader_view.toolbar.sidebar_restore_requested.connect(self._show_sidebar)
+        self.reader_view.toolbar.focus_mode_changed.connect(self._set_focus_mode)
         self._sync_service.signals.sync_started.connect(self._on_sync_started)
         self._sync_service.signals.sync_finished.connect(self._on_sync_finished)
         self._sync_service.signals.sync_error.connect(self._on_sync_error)
@@ -206,7 +218,42 @@ class MainWindow(QMainWindow):
             return
         if self._entry_request_id != request_id or self._selected_entry_id != entry_id:
             return
-        self.reader_view.show_content(result.html, entry.url)
+        self.reader_view.show_content(result.html, entry.url, entry.id)
+
+    def open_settings_dialog(self) -> None:
+        dialog = SettingsDialog(self._settings, self)
+        self._settings_dialog = dialog
+        dialog.provider_panel.test_requested.connect(self._provider_test_slot)
+        dialog.provider_panel.configuration_saved.connect(
+            lambda: self.statusBar().showMessage(
+                self.tr("LLM 配置已保存，重启应用后用于新任务。"), 6000
+            )
+        )
+        dialog.finished.connect(lambda _result: self._clear_settings_dialog(dialog))
+        dialog.show()
+
+    def _clear_settings_dialog(self, dialog: SettingsDialog) -> None:
+        if self._settings_dialog is dialog:
+            self._settings_dialog = None
+
+    @asyncSlot(object)
+    async def _provider_test_slot(self, config: dict[str, str]) -> None:
+        dialog = self._settings_dialog
+        if dialog is None:
+            return
+        from core.agent.providers import LLMRouter, ProviderConfig
+
+        provider = ProviderConfig(
+            name=config["name"] or "provider",
+            base_url=config["base_url"],
+            model=config["model"] or "model",
+        )
+        if config["api_key"]:
+            provider.set_api_key(config["api_key"])
+        router = LLMRouter(primary=provider)
+        success, models, error = await router.test_connection(provider)
+        if self._settings_dialog is dialog:
+            dialog.provider_panel.show_test_result(success, models, error)
 
     async def refresh_entries(self) -> None:
         feed_id = state.selected_feed_id
@@ -384,7 +431,27 @@ class MainWindow(QMainWindow):
         self._settings.setValue("ui/main_window/geometry", self.saveGeometry())
         self._settings.setValue("ui/main_window/state", self.saveState())
         self._settings.setValue("ui/main_window/splitter", self.splitter.saveState())
+        self.reader_view.save_ui_state()
         self._settings.sync()
+
+    def _hide_sidebar(self) -> None:
+        self.sidebar.hide()
+        self.reader_view.toolbar.show_sidebar_restore(True)
+
+    def _show_sidebar(self) -> None:
+        self.sidebar.show()
+        self.reader_view.toolbar.show_sidebar_restore(False)
+
+    def _set_focus_mode(self, enabled: bool) -> None:
+        if enabled:
+            self._sidebar_visible_before_focus = not self.sidebar.isHidden()
+            self.sidebar.hide()
+            self.entry_list.hide()
+            self.reader_view.toolbar.show_sidebar_restore(False)
+        else:
+            self.sidebar.setVisible(self._sidebar_visible_before_focus)
+            self.entry_list.show()
+            self.reader_view.toolbar.show_sidebar_restore(not self._sidebar_visible_before_focus)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         self.save_ui_state()

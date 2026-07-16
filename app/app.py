@@ -7,6 +7,7 @@
   3. 构建 AgentRuntime + 注册所有 Agent（Summary / Translation / Tagging）
   4. 注入 MainWindow
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,9 +31,9 @@ _logger = logging.getLogger(__name__)
 _PROVIDER_BASE_URL = "llm/base_url"
 _PROVIDER_MODEL = "llm/model"
 _PROVIDER_API_KEY = "llm/api_key"
-_AUTO_SUMMARY = "agent/auto_summary"       # bool: 切换文章后自动生成摘要
-_SUMMARY_LANG = "agent/summary_language"    # 摘要语言
-_SUMMARY_DETAIL = "agent/summary_detail"    # brief | standard | detailed
+_AUTO_SUMMARY = "agent/auto_summary"  # bool: 切换文章后自动生成摘要
+_SUMMARY_LANG = "agent/summary_language"  # 摘要语言
+_SUMMARY_DETAIL = "agent/summary_detail"  # brief | standard | detailed
 _TRANSLATION_LANG = "agent/translation_language"  # 翻译目标语言
 _TRANSLATION_DEGREE = "agent/translation_degree"  # 并发度 1–5
 
@@ -63,12 +64,12 @@ def _build_agent_runtime(
         (AgentRuntime, has_llm_configured: bool)
         若 LLM 未配置，AgentRuntime 仍然可用，但 submit() 会返回错误。
     """
+    from core.agent.providers import LLMRouter, ProviderConfig
     from core.agent.runtime import AgentRuntime
-    from core.agent.providers import ProviderConfig, LLMRouter
-    from core.agent.template_loader import TemplateLoader
     from core.agent.summary import SummaryAgent
-    from core.agent.translation import TranslationAgent
     from core.agent.tagging import TagAgent
+    from core.agent.template_loader import TemplateLoader
+    from core.agent.translation import TranslationAgent
     from core.reader.pipeline import ReaderPipeline
     from store.agent_store import AgentStore
 
@@ -77,8 +78,7 @@ def _build_agent_runtime(
     agent_store = AgentStore(db)
 
     # ── 模板加载器 ──────────────────────────────────────────────────
-    builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent
-                      / "resources" / "prompts")
+    builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
     sandbox_dir = str(pathlib.Path.home() / ".mercury" / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
 
@@ -111,12 +111,8 @@ def _build_agent_runtime(
 
     # ── SummaryAgent ─────────────────────────────────────────────────
     summary_agent = SummaryAgent(pipeline, router, templates, agent_store)
-    summary_agent.language = str(
-        settings.value(_SUMMARY_LANG, _DEFAULTS[_SUMMARY_LANG])
-    )
-    summary_agent.detail_level = str(
-        settings.value(_SUMMARY_DETAIL, _DEFAULTS[_SUMMARY_DETAIL])
-    )
+    summary_agent.language = str(settings.value(_SUMMARY_LANG, _DEFAULTS[_SUMMARY_LANG]))
+    summary_agent.detail_level = str(settings.value(_SUMMARY_DETAIL, _DEFAULTS[_SUMMARY_DETAIL]))
     summary_agent.register(runtime)
 
     # ── TranslationAgent ─────────────────────────────────────────────
@@ -136,7 +132,9 @@ def _build_agent_runtime(
 
     _logger.info(
         "AgentRuntime ready: summary=%s translation=%s tagging=%s llm=%s",
-        summary_agent, translation_agent, tagging_agent,
+        summary_agent,
+        translation_agent,
+        tagging_agent,
         f"{model}@{base_url}" if has_llm else "unconfigured",
     )
 
