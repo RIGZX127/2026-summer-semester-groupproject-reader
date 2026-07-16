@@ -26,8 +26,133 @@ READER_VERSION   = 1
 MARKDOWN_VERSION = 1
 RENDER_VERSION   = 1
 
-_USER_AGENT = "Mercury-Reader/1.0"
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
 _EXECUTOR_TIMEOUT = 30.0   # run_in_executor 的统一超时（秒）
+
+# 模拟真实浏览器的请求头，降低被 Cloudflare 等 CDN 拦截的概率
+# Sec-Fetch 系列是 Chromium 每次请求都发送的头，Cloudflare Bot Detection 会检查
+_REQUEST_HEADERS = {
+    "User-Agent": _USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "DNT": "1",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "Cache-Control": "max-age=0",
+}
+
+
+# ── Fetch 降级策略 ──────────────────────────────────────────────────────────
+
+_WEBENGINE_TIMEOUT = 20.0  # QWebEngineView 加载超时（比 httpx 长，因需等 JS）
+
+
+async def _fetch_article(url: str, entry_id: int) -> str:
+    """获取文章 HTML。先 httpx，被拦则降级到 QWebEngineView。
+
+    QWebEngineView = 真实 Chromium，可过 Cloudflare JS 挑战、WAF 等一切反爬。
+    """
+    # 第一级：httpx（快速、轻量）
+    try:
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=15.0,
+            headers=_REQUEST_HEADERS,
+        ) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.text
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        if status not in (403, 429, 503):
+            raise ReaderFetchError(
+                f"HTTP {status} for {url}",
+                entry_id=entry_id,
+                status_code=status,
+            ) from exc
+        # 403/429/503 → 可能是 Cloudflare 拦截，降级到 WebEngine
+    except httpx.RequestError:
+        # 网络错误也可能是 Cloudflare 导致的（SSL 指纹等），降级
+        pass
+
+    # 第二级：QWebEngineView（真实浏览器，零配置过 Cloudflare）
+    return await _fetch_via_webengine(url)
+
+
+async def _fetch_via_webengine(url: str) -> str:
+    """用隐藏的 QWebEnginePage（Chromium 内核）加载页面并提取 HTML。
+
+    原理：
+      1. 创建隐藏的 QWebEnginePage
+      2. 加载 URL（Chromium 渲染器执行所有 JS，Cloudflare 挑战自动通过）
+      3. 等待 loadFinished 信号
+      4. 通过 page.toHtml() 回调获取完整 HTML
+      5. 销毁 page 并返回 HTML
+    """
+    from PySide6.QtCore import QTimer, QUrl
+    from PySide6.QtWebEngineCore import QWebEnginePage
+
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[str] = loop.create_future()
+
+    page: QWebEnginePage | None = QWebEnginePage()
+
+    def _on_load_finished(ok: bool) -> None:
+        if future.done():
+            return
+        if not ok:
+            future.set_exception(
+                RuntimeError(f"QWebEnginePage failed to load: {url}")
+            )
+            return
+        # toHtml 回调拿到渲染后的完整 HTML
+        assert page is not None
+        page.toHtml(lambda html: _on_html_received(html))
+
+    def _on_html_received(html: str) -> None:
+        if future.done():
+            return
+        future.set_result(html)
+
+    def _on_timeout() -> None:
+        if future.done():
+            return
+        future.set_exception(
+            RuntimeError(f"QWebEnginePage load timeout ({_WEBENGINE_TIMEOUT}s): {url}")
+        )
+        _cleanup()
+
+    def _cleanup() -> None:
+        nonlocal page
+        if page is not None:
+            try:
+                page.deleteLater()
+            except RuntimeError:
+                pass
+            page = None
+
+    timer = QTimer()
+    timer.setSingleShot(True)
+    timer.timeout.connect(_on_timeout)
+    timer.start(int(_WEBENGINE_TIMEOUT * 1000))
+
+    page.loadFinished.connect(_on_load_finished)
+    page.load(QUrl(url))
+
+    try:
+        html = await future
+        return html
+    finally:
+        timer.stop()
+        _cleanup()
 
 
 class ReaderFetchError(Exception):
@@ -122,26 +247,8 @@ class ReaderPipeline:
         # ── 2. Fetch ─────────────────────────────────────────────────────
         source_html = ""
         if entry.url:
-            try:
-                async with httpx.AsyncClient(
-                    follow_redirects=True,
-                    timeout=15.0,
-                    headers={"User-Agent": _USER_AGENT},
-                ) as client:
-                    response = await client.get(entry.url)
-                    response.raise_for_status()
-                    source_html = response.text
-            except httpx.HTTPStatusError as exc:
-                raise ReaderFetchError(
-                    f"HTTP {exc.response.status_code} for {entry.url}",
-                    entry_id=entry_id,
-                    status_code=exc.response.status_code,
-                ) from exc
-            except httpx.RequestError as exc:
-                raise ReaderFetchError(
-                    f"Network error for {entry.url}: {exc}",
-                    entry_id=entry_id,
-                ) from exc
+            # 先尝试 httpx（快速），403/5xx 则降级到 QWebEngineView（可过 Cloudflare）
+            source_html = await _fetch_article(entry.url, entry_id)
 
         # ── 3. Extract（readability）────────────────────────────────────
         if source_html:
