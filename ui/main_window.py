@@ -36,12 +36,14 @@ class MainWindow(QMainWindow):
         sync_service: SyncService,
         settings: QSettings | None = None,
         reader_pipeline: ReaderPipeline | None = None,
+        agent_runtime: object | None = None,
     ) -> None:
         super().__init__()
         self._feed_store = feed_store
         self._entry_store = entry_store
         self._sync_service = sync_service
         self._reader_pipeline = reader_pipeline
+        self._agent_runtime = agent_runtime
         self._settings = settings or QSettings()
         self._feed_request_id: str | None = None
         self._entry_request_id: str | None = None
@@ -54,7 +56,9 @@ class MainWindow(QMainWindow):
         self.resize(1280, 800)
         self.sidebar = Sidebar()
         self.entry_list = EntryListWidget()
-        self.reader_view = ReaderView(settings=self._settings)
+        self.reader_view = ReaderView(
+            settings=self._settings, agent_runtime=self._agent_runtime
+        )
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.addWidget(self.sidebar)

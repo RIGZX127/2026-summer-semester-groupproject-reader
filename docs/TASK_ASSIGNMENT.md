@@ -1,6 +1,6 @@
 # Mercury 任务分配表
 
-> 更新：2026-07-14 | 仓库：`docs/TASK_ASSIGNMENT.md`
+> 更新：2026-07-16 | 仓库：`docs/TASK_ASSIGNMENT.md`
 
 ---
 
@@ -19,9 +19,9 @@
 ```
 Phase 0 [████] 文档 ✅
 Phase 1 [████] 基础搭建 ✅
-Phase 2 [██░░] Reader 🔄 G2.1完成，G2.2待A
-Phase 3 [█░░░] Agent  🔄 B后端完成(G3.1+G3.2)，Agent实现+UI待做
-Phase 4 [░░░░] 标签
+Phase 2 [███░] Reader 🔄 G2.1✅ G2.2✅，UI对接完成，待验收
+Phase 3 [████] Agent  ✅ B全部完成（3 Agent + Runtime + Provider + Templates）
+Phase 4 [████] 标签 ✅ G4.1交付（normalizer + tag_store + cooccurrence）
 Phase 5 [░░░░] 笔记/导出/统计/i18n
 Phase 6 [░░░░] CI/打包
 ```
@@ -33,11 +33,11 @@ Phase 6 [░░░░] CI/打包
 | 门控 | 谁→谁 | 内容 | 状态 |
 |------|-------|------|------|
 | G2.1 | A→B,C | `RenderedContent` + `ReaderPipeline.build()` | ✅ 已冻结 |
-| G2.2 | A→C | `EntryStore` 文章管理方法 | ⬜ 待A |
+| G2.2 | A→C | `EntryStore` 文章管理方法（6个方法全部到位） | ✅ 已交付 |
 | G3.1 | B→A | `AgentRuntime` 单例注入 | ✅ 已冻结 |
 | G3.2 | B→C | `AgentUIEvent` + Signals | ✅ 已冻结 |
-| G3.3 | B→C | `ProviderConfig` + `LLMRouter` | ⬜ 待B确认 |
-| G4.1 | A→B,C | `normalize()` + `TagStore` | ⬜ 待A |
+| G3.3 | B→C | `ProviderConfig` + `LLMRouter` | ✅ 已冻结 |
+| G4.1 | A→B,C | `normalize()` + `TagStore` | ✅ 已交付 |
 
 ---
 
@@ -45,10 +45,10 @@ Phase 6 [░░░░] CI/打包
 
 | # | 任务 | 说明 | 阻塞谁 |
 |---|------|------|--------|
-| 1 | `store/entry_store.py` 加6个方法 | mark_read/unread, batch_mark_read, toggle_star, search, soft_delete → **G2.2** | C的文章管理UI |
-| 2 | `core/tags/normalizer.py` | 标签规范化+别名解析 | B的TagAgent, C的标签UI |
-| 3 | `store/tag_store.py` | 标签库+批量打标+临时标签 → **G4.1** | B的TagAgent, C的标签UI |
-| 4 | `core/tags/cooccurrence.py` | 共现推荐 | — |
+| 1 | `store/entry_store.py` 加6个方法 | ✅ mark_read, mark_unread, batch_mark_read, toggle_star, search, soft_delete 全部完成 | — |
+| 2 | `core/tags/normalizer.py` | ✅ TagNormalizer（Unicode NFC + 智能小写 + 别名解析） | — |
+| 3 | `store/tag_store.py` | ✅ TagStore（CRUD + 文章关联 + 批量打标 + 别名管理 + 临时标签）→ **G4.1** | — |
+| 4 | `core/tags/cooccurrence.py` | ✅ CooccurrenceEngine（Jaccard 共现推荐 + 5min 缓存） | — |
 | 5 | `store/note_store.py` | 笔记CRUD | C的笔记编辑器 |
 | 6 | `core/digest/exporter.py` + 模板 | Jinja2导出(Hugo兼容) | C的导出对话框 |
 | 7 | `.github/workflows/ci.yml` | 三平台CI | — |
@@ -60,10 +60,10 @@ Phase 6 [░░░░] CI/打包
 
 | # | 任务 | 说明 | 依赖 |
 |---|------|------|------|
-| 1 | `core/agent/summary.py` | SummaryAgent(手动+自动,防抖,缓存) | G2.1✅ G3.1✅ |
-| 2 | `core/agent/translation.py` | TranslationAgent(分段,并发,双语HTML) | G2.1✅ G3.1✅ |
-| 3 | G3.3冻结 | 确认ProviderConfig+LLMRouter接口 | — |
-| 4 | `core/agent/tagging.py` | TagAgent(LLM建议+去重+批量) | G4.1⬜ |
+| 1 | `core/agent/summary.py` | ✅ SummaryAgent（手动+自动，防抖，缓存）已完成 | G2.1✅ G3.1✅ |
+| 2 | `core/agent/translation.py` | ✅ TranslationAgent（分段，并发，双语HTML）已完成 | G2.1✅ G3.1✅ |
+| 3 | G3.3冻结 | ✅ `ProviderConfig` + `LLMRouter` 接口已确认冻结 | — |
+| 4 | `core/agent/tagging.py` | ✅ TagAgent（LLM建议+JSON解析容错+规范化+去重+可选依赖注入）已完成 | G4.1⬜ |
 
 ---
 
@@ -71,11 +71,11 @@ Phase 6 [░░░░] CI/打包
 
 | # | 任务 | 说明 | 依赖 |
 |---|------|------|------|
-| 1 | `ui/reader/theme.py` + `theme_manager.py` | 主题系统(预设+自定义+持久化) | 无，立即做 |
-| 2 | `ui/reader/reader_view.py` 管线对接 | 调用ReaderPipeline,占位层,回退,错误重试 | G2.1✅ |
-| 3 | `ui/entry_list.py` 扩展 | 已读/收藏/右键菜单 | G2.2⬜ |
-| 4 | 搜索栏组件 | 标题+摘要搜索 | G2.2⬜ |
-| 5 | `ui/reader/reader_toolbar.py` | 模式切换+主题+导出 | G2.1✅ |
+| 1 | `ui/reader/theme.py` + `theme_manager.py` | ✅ 主题系统已完成（含 LIGHT/DARK 双调色板 + 预设） | — |
+| 2 | `ui/reader/reader_view.py` 管线对接 | ✅ 已对接 ReaderPipeline + WebEngine 降级 | G2.1✅ |
+| 3 | `ui/entry_list.py` 扩展 | ✅ 已读/收藏/右键菜单/搜索栏 已完成 | G2.2✅ |
+| 4 | 搜索栏组件 | ✅ 已集成在 entry_list.py | G2.2✅ |
+| 5 | `ui/reader/reader_toolbar.py` | ✅ 模式切换+字号+主题+内容宽度 已完成 | G2.1✅ |
 | 6 | `ui/dialogs/opml_dialog.py` | OPML导入导出UI | Phase1✅ |
 | 7 | `ui/settings/provider_panel.py` | LLM提供者配置 | G3.3⬜ |
 | 8 | `ui/settings/agent_panel.py` | Agent类型设置 | G3.3⬜ |
@@ -94,10 +94,23 @@ Phase 6 [░░░░] CI/打包
 ## 当前阻塞点
 
 ```
-A → entry_store.py(G2.2) → C 的文章管理UI
-A → tag_store.py(G4.1)   → B 的TagAgent + C 的标签UI
-B → G3.3冻结             → C 的Provider设置面板
+（无）— Phase 0–4 全部交付，Phase 5 待启动
 ```
+
+---
+
+## 本次更新摘要（2026-07-16）
+
+| 变更 | 详情 |
+|------|------|
+| ✅ A-1 完成 | `EntryStore` 6个方法全部实现（mark_read/unread, batch_mark_read, toggle_star, search, soft_delete） |
+| ✅ G2.2 交付 | A→C 文章管理接口已就绪 |
+| ✅ B-1 完成 | `SummaryAgent` 实现完毕（缓存、流式、AgentStore持久化） |
+| ✅ B-2 完成 | `TranslationAgent` 实现完毕（分段、并发、双语HTML组装） |
+| ✅ B-3 完成 | G3.3 正式冻结 — `ProviderConfig` + `LLMRouter` 接口确认稳定 |
+| ✅ B-4 完成 | `TagAgent` 实现完毕（LLM建议、JSON容错解析、规范化去重、可选依赖注入） |
+| ✅ C-1~5 完成 | 主题系统、reader_view管线对接、entry_list扩展、搜索栏、reader_toolbar |
+| ✅ styles.py | `application_stylesheet()` 改为 palette 驱动，支持亮/暗双主题 |
 
 ---
 

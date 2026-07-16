@@ -1,70 +1,69 @@
-"""Application-wide design tokens and QSS."""
+"""Application-wide spacing tokens and palette-driven QSS."""
+
 from __future__ import annotations
 
-COLORS = {
-    "sidebar": "#192838",
-    "sidebar_hover": "#24394B",
-    "sidebar_selected": "#2D5267",
-    "surface": "#FCFBF8",
-    "surface_alt": "#F3F5F6",
-    "border": "#DDE3E8",
-    "text": "#1E2A34",
-    "muted": "#687986",
-    "accent": "#4B7F92",
-    "accent_soft": "#E8F1F4",
-    "error": "#B44A4A",
-    "warning": "#A36A25",
-    "focus": "#76A9BD",
-}
+from ui.theme import LIGHT_PALETTE, Palette
+
 SPACING = {"unit": 8, "compact": 6, "normal": 12, "section": 20, "large": 28}
-RADIUS = {"control": 7, "panel": 8}
+RADIUS = {"control": 8, "panel": 12}
 
 
-def application_stylesheet() -> str:
-    """Return the centralized application stylesheet."""
+def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
+    """Return polished QSS for the selected semantic palette."""
+    p = palette
     return f"""
-    QWidget {{ color: {COLORS['text']}; font-size: 14px; }}
-    QMainWindow, QWidget#ContentSurface {{ background: {COLORS['surface']}; }}
-    QWidget#Sidebar {{ background: {COLORS['sidebar']}; color: #EEF3F6; }}
-    QWidget#Sidebar QLabel {{ color: #EEF3F6; }}
-    QLabel#AppTitle {{ font-size: 20px; font-weight: 700; }}
-    QLabel#SidebarSection {{ color: #9EB0BE; font-weight: 600; }}
-    QLabel#SectionTitle {{ font-size: 17px; font-weight: 650; }}
-    QLabel#MutedLabel {{ color: {COLORS['muted']}; }}
-    QLabel#ErrorLabel {{ color: {COLORS['error']}; }}
-    QLabel#StateTitle {{ font-size: 17px; font-weight: 650; color: {COLORS['text']}; }}
-    QLabel#StateMessage {{ color: {COLORS['muted']}; }}
-    QLabel#LoadingBanner {{
-        color: {COLORS['accent']}; background: {COLORS['accent_soft']};
-        padding: 7px 12px; border-bottom: 1px solid {COLORS['border']};
-    }}
+    QWidget {{ color: {p.text}; font-size: 14px; selection-background-color: {p.accent}; }}
+    QMainWindow, QWidget#ContentSurface, QDialog {{ background: {p.window}; }}
+    QWidget#Sidebar {{ background: {p.sidebar}; color: #EAF0ED; }}
+    QWidget#Sidebar QLabel {{ color: #EAF0ED; }}
+    QLabel#AppTitle {{ font-size: 21px; font-weight: 700; }}
+    QLabel#SidebarSection {{ color: #A7B7B1; font-weight: 600; }}
+    QLabel#SectionTitle {{ font-size: 18px; font-weight: 650; }}
+    QLabel#MutedLabel, QLabel#StateMessage {{ color: {p.text_muted}; }}
+    QLabel#ErrorLabel {{ color: {p.error}; }}
+    QLabel#StateTitle {{ font-size: 17px; font-weight: 650; }}
+    QLabel#LoadingBanner {{ color: {p.accent}; background: {p.accent_soft};
+        padding: 8px 12px; border-radius: {RADIUS["control"]}px; }}
     QListWidget {{ border: 0; outline: 0; background: transparent; }}
-    QListWidget::item {{ padding: 11px 12px; border-radius: {RADIUS['control']}px; }}
-    QListWidget::item:hover {{ background: #EDF2F4; }}
-    QListWidget::item:selected {{ background: {COLORS['accent_soft']}; color: {COLORS['text']}; }}
-    QWidget#Sidebar QListWidget {{ color: #DDE7EC; }}
-    QWidget#Sidebar QListWidget::item:hover {{ background: {COLORS['sidebar_hover']}; }}
-    QWidget#Sidebar QListWidget::item:selected {{
-        background: {COLORS['sidebar_selected']}; color: white;
+    QListWidget::item {{ padding: 12px; border-radius: {RADIUS["control"]}px; }}
+    QListWidget::item:hover {{ background: {p.surface_hover}; }}
+    QListWidget::item:selected {{ background: {p.accent_soft}; color: {p.text}; }}
+    QWidget#Sidebar QListWidget {{ color: #DCE6E1; }}
+    QWidget#Sidebar QListWidget::item:hover {{ background: {p.sidebar_hover}; }}
+    QWidget#Sidebar QListWidget::item:selected {{ background: {p.sidebar_selected}; color: white; }}
+    QWidget#ReaderToolbar {{ background: {p.surface_alt}; border-bottom: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QLabel {{ color: {p.text_muted}; font-weight: 600; }}
+    QPushButton {{ min-height: 36px; padding: 0 13px; border: 1px solid {p.border};
+        border-radius: {RADIUS["control"]}px; background: {p.control}; }}
+    QPushButton:hover {{ background: {p.surface_hover}; border-color: {p.border_strong}; }}
+    QPushButton:pressed {{ background: {p.surface_pressed}; padding-top: 1px; }}
+    QPushButton:focus {{ border: 2px solid {p.focus}; }}
+    QPushButton:disabled {{ color: {p.text_disabled}; border-color: {p.border}; background: {p.surface_alt}; }}
+    QPushButton#PrimaryButton, QPushButton[buttonRole="primary"] {{ color: {p.text_on_accent}; background: {p.accent}; border-color: {p.accent}; }}
+    QPushButton#PrimaryButton:hover, QPushButton[buttonRole="primary"]:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
+    QPushButton#PrimaryButton:pressed, QPushButton[buttonRole="primary"]:pressed {{ background: {p.accent_pressed}; border-color: {p.accent_pressed}; }}
+    QPushButton#DangerButton:hover {{ color: {p.error}; background: {p.error_soft}; border-color: {p.error}; }}
+    QWidget#ReaderToolbar QPushButton {{ min-height: 34px; color: {p.text_muted}; background: transparent; border-color: transparent; }}
+    QWidget#ReaderToolbar QPushButton:hover {{ color: {p.text}; background: {p.surface_hover}; }}
+    QWidget#ReaderToolbar QPushButton:checked {{ color: {p.text_on_accent}; background: {p.accent}; border-color: {p.accent}; }}
+    QWidget#Sidebar QPushButton {{ color: white; background: {p.sidebar_selected}; border-color: {p.sidebar_hover}; }}
+    QLineEdit, QComboBox, QSpinBox {{ min-height: 36px; padding: 0 10px; color: {p.text};
+        background: {p.control}; border: 1px solid {p.border}; border-radius: {RADIUS["control"]}px; }}
+    QLineEdit:hover, QComboBox:hover, QSpinBox:hover {{ border-color: {p.border_strong}; }}
+    QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid {p.focus}; }}
+    QLineEdit[validationError="true"] {{ border: 1px solid {p.error}; }}
+    QComboBox[readerControl="true"], QSpinBox[readerControl="true"] {{
+        color: {p.text}; background: {p.control}; border-color: {p.border};
     }}
-    QPushButton {{
-        min-height: 34px; padding: 0 12px; border: 1px solid {COLORS['border']};
-        border-radius: {RADIUS['control']}px; background: {COLORS['surface']};
-    }}
-    QPushButton:hover {{ background: {COLORS['surface_alt']}; }}
-    QPushButton#PrimaryButton {{
-        color: white; background: {COLORS['accent']}; border-color: {COLORS['accent']};
-    }}
-    QWidget#Sidebar QPushButton {{ color: white; background: {COLORS['sidebar_selected']};
-        border-color: #416579; }}
-    QPushButton:focus, QLineEdit:focus, QListWidget:focus {{
-        border: 2px solid {COLORS['focus']};
-    }}
-    QLineEdit {{
-        min-height: 36px; padding: 0 10px; background: white;
-        border: 1px solid {COLORS['border']}; border-radius: {RADIUS['control']}px;
-    }}
-    QLineEdit[validationError="true"] {{ border: 1px solid {COLORS['error']}; }}
-    QSplitter::handle {{ background: {COLORS['border']}; width: 1px; }}
-    QStatusBar {{ background: {COLORS['surface_alt']}; color: {COLORS['muted']}; }}
+    QComboBox[readerControl="true"] QAbstractItemView {{ color: {p.text}; background: {p.control};
+        selection-color: {p.text_on_accent}; selection-background-color: {p.accent}; border: 1px solid {p.border}; outline: 0; }}
+    QMenu {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; padding: 6px; }}
+    QMenu::item {{ padding: 7px 24px 7px 10px; border-radius: 6px; }}
+    QMenu::item:selected {{ background: {p.accent_soft}; }}
+    QSplitter::handle {{ background: {p.border}; width: 1px; }}
+    QStatusBar {{ background: {p.surface_alt}; color: {p.text_muted}; border-top: 1px solid {p.border}; }}
+    QScrollBar:vertical {{ width: 10px; background: transparent; margin: 2px; }}
+    QScrollBar::handle:vertical {{ min-height: 28px; border-radius: 4px; background: {p.border_strong}; }}
+    QScrollBar::handle:vertical:hover {{ background: {p.text_muted}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
     """

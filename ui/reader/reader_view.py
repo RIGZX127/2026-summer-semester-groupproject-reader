@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QLabel, QPushButton, QSplitter, QStackedWidget, QV
 
 from store.entry_store import EntryRow
 from ui.reader.reader_toolbar import ReaderToolbar
+from ui.reader.summary_panel import SummaryPanel
 from ui.reader.theme_manager import ThemeManager
 from ui.theme_controller import ThemeController
 
@@ -34,6 +35,7 @@ class ReaderView(QWidget):
         self,
         parent: QWidget | None = None,
         settings: QSettings | None = None,
+        agent_runtime: object | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("ContentSurface")
@@ -46,9 +48,11 @@ class ReaderView(QWidget):
         )
         self.toolbar = ReaderToolbar(self.theme_manager.theme)
         self.toolbar.set_theme_preference(self.app_theme_controller.preference)
+        self.summary_panel = SummaryPanel(runtime=agent_runtime, parent=self)
         self.current_mode = "reader"
         self.current_url: str | None = None
         self.last_html = ""
+        self._current_entry_id: int | None = None
 
         self.stack = QStackedWidget()
         self.empty_page = self._message_page(
@@ -98,12 +102,14 @@ class ReaderView(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.stack, 1)
+        layout.addWidget(self.summary_panel)
 
         self.toolbar.mode_changed.connect(self.set_mode)
         self.toolbar.font_size_changed.connect(self._set_font_size)
         self.toolbar.theme_preference_changed.connect(self.app_theme_controller.set_preference)
         self.app_theme_controller.theme_changed.connect(self._on_app_theme_changed)
         self.toolbar.content_width_changed.connect(self._set_content_width)
+        self.summary_panel.generate_requested.connect(self._request_summary)
         self.show_empty()
         QTimer.singleShot(0, self.app_theme_controller.apply)
 
@@ -134,7 +140,7 @@ class ReaderView(QWidget):
     def show_loading(self) -> None:
         self.stack.setCurrentWidget(self.loading_page)
 
-    def show_content(self, rendered_html: str, url: str | None) -> None:
+    def show_content(self, rendered_html: str, url: str | None, entry_id: int | None = None) -> None:
         self.current_url = url
         self.last_html = self.theme_manager.wrap_html(rendered_html)
         self.reader_web_view.setHtml(self.last_html)
@@ -145,6 +151,9 @@ class ReaderView(QWidget):
             self.web_stack.setCurrentWidget(self.no_url_page)
         self._apply_mode()
         self.stack.setCurrentWidget(self.content_stack)
+        if entry_id is not None:
+            self._current_entry_id = entry_id
+            self.summary_panel.set_entry(entry_id)
 
     def show_entry(self, entry: EntryRow) -> None:
         title = html.escape(entry.title or self.tr("无标题"))
@@ -227,3 +236,15 @@ class ReaderView(QWidget):
     def _set_content_width(self, value: int) -> None:
         self.theme_manager.set_content_width(value)
         self._rerender_reader()
+
+    def _request_summary(self, entry_id: int) -> None:
+        """Forward summary request to AgentRuntime."""
+        from app.state import state
+
+        if state.agent_runtime is not None:
+            try:
+                state.agent_runtime.submit(entry_id, "summary")
+            except Exception:
+                self.summary_panel._status_label.setText(
+                    self.tr("❌ Agent 提交失败，请检查 LLM 配置")
+                )

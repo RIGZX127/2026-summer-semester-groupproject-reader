@@ -9,10 +9,13 @@
 - asyncio.Semaphore(degree) 控制并发（默认 3，范围 1–5）
 - 上下文传递：每段翻译时附带前一段的原文+译文
 - 段落级失败恢复：失败段标记，全部完成后统一重试
+- AgentStore 持久化：翻译结果缓存，命中 (entry_id, provider, model, prompt_version)
+- 失败段 ID 暴露：result 中 failed_segment_indices 供 UI 做定向重试
 """
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -22,6 +25,7 @@ from core.agent.template_loader import TemplateLoader
 if TYPE_CHECKING:
     from core.agent.runtime import AgentRuntime
     from core.reader.pipeline import ReaderPipeline
+    from store.agent_store import AgentStore
 
 # 顶级块级标签：翻译的最小单元
 _BLOCK_TAGS = {"p", "ul", "ol", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6"}
@@ -67,10 +71,12 @@ class TranslationAgent:
         pipeline: ReaderPipeline,
         router: LLMRouter,
         templates: TemplateLoader,
+        agent_store: AgentStore | None = None,
     ) -> None:
         self._pipeline = pipeline
         self._router = router
         self._templates = templates
+        self._agent_store = agent_store
         self._runtime: AgentRuntime | None = None
 
         # 可配置参数
@@ -99,25 +105,66 @@ class TranslationAgent:
     # ── Runtime handler ──────────────────────────────────────────────────
 
     async def _handler(self, entry_id: int, run_id: str) -> dict | None:
-        """AgentRuntime handler 接口：(entry_id, run_id) -> dict | None。"""
-        return await self.translate(entry_id, run_id)
+        """AgentRuntime handler 接口：(entry_id, run_id) -> dict | None。
+
+        包含 AgentStore 持久化流程：create → translate → complete/cancel。
+        """
+        if self._agent_store is None:
+            return await self.translate(entry_id, run_id)
+
+        db_run = await self._agent_store.create(entry_id, "translation")
+        try:
+            result = await self.translate(entry_id, run_id)
+            await self._agent_store.complete(db_run.id, result)
+            return result
+        except asyncio.CancelledError:
+            await self._agent_store.cancel(db_run.id)
+            raise
+        except Exception as exc:
+            await self._agent_store.complete(db_run.id, None, error=str(exc))
+            raise
 
     # ── 核心翻译逻辑 ─────────────────────────────────────────────────────
 
     async def translate(self, entry_id: int, run_id: str) -> dict:
         """执行翻译流程。
 
-        1. 从 ReaderPipeline 获取 HTML
-        2. 按顶级块元素分段
-        3. 并发翻译每段（带上下文）
-        4. 重试失败段
-        5. 组装双语 HTML
-        6. 返回结果
+        1. 检查 AgentStore 缓存
+        2. 从 ReaderPipeline 获取 HTML
+        3. 按顶级块元素分段
+        4. 并发翻译每段（带上下文）
+        5. 重试失败段
+        6. 组装双语 HTML
+        7. 返回结果
 
         Returns:
             {"html": str, "paragraphs_total": int, "paragraphs_success": int,
-             "paragraphs_failed": int, "target_language": str}
+             "paragraphs_failed": int, "failed_segment_indices": list[int],
+             "target_language": str, "provider": str, "model": str,
+             "_cache_key": str}
         """
+        # ── 缓存键 ───────────────────────────────────────────────────
+        tpl = self._templates.load("translation")
+        provider_name = self._router.active_provider_name
+        model_name = self._router.active_model_name
+        cache_key = f"{entry_id}:{provider_name}:{model_name}:{tpl.version}:translation:v1"
+
+        # ── 0. 检查缓存 ──────────────────────────────────────────────
+        if self._agent_store is not None:
+            cached = await self._agent_store.get_latest(entry_id, "translation")
+            if cached and cached.status == "done" and cached.result_json:
+                try:
+                    cached_result = json.loads(cached.result_json)
+                    if cached_result.get("_cache_key") == cache_key:
+                        html = cached_result.get("html", "")
+                        if html and self._runtime:
+                            self._runtime.broadcast_chunk(
+                                run_id, entry_id, "translation", html
+                            )
+                        return cached_result
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
         # ── 1. 获取 HTML ──────────────────────────────────────────────
         rendered = await self._pipeline.build(entry_id)
         if not rendered.html:
@@ -194,7 +241,11 @@ class TranslationAgent:
             "paragraphs_total": total,
             "paragraphs_success": success_count,
             "paragraphs_failed": len(failed_segments),
+            "failed_segment_indices": [s.index for s in failed_segments],
             "target_language": self.target_language,
+            "provider": provider_name,
+            "model": model_name,
+            "_cache_key": cache_key,
         }
 
     # ── 内部分段 ─────────────────────────────────────────────────────────

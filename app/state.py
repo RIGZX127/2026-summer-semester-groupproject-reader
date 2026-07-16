@@ -29,6 +29,9 @@ class AppState:
     # ── AI Agent 运行时（Phase 3 注入）──────────────────────────────────
     agent_runtime: Any | None = None
 
+    # ── LLM 是否已配置（Phase 3 注入）────────────────────────────────────
+    has_llm: bool = False
+
 
 # 模块级单例 —— 整个进程共享同一个 AppState 实例
 state = AppState()

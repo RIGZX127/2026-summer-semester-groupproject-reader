@@ -1,9 +1,11 @@
 """Feed navigation sidebar."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QLabel,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -28,6 +30,7 @@ class Sidebar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Sidebar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumWidth(210)
 
         title = QLabel("Mercury")
@@ -39,12 +42,19 @@ class Sidebar(QWidget):
         self.sync_button.setAccessibleName(self.tr("同步当前订阅"))
         self.sync_button.setToolTip(self.tr("获取当前订阅源的最新文章"))
         self.sync_button.setEnabled(False)
+        self.add_button.setMinimumHeight(36)
+        self.add_button.setProperty("buttonRole", "primary")
+        self.sync_button.setMinimumHeight(36)
+        self.sync_button.setProperty("buttonRole", "secondary")
 
         section = QLabel(self.tr("订阅源"))
         section.setObjectName("SidebarSection")
         self.feed_list = QListWidget()
         self.feed_list.setAccessibleName(self.tr("订阅源列表"))
-        self.feed_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.feed_list.setWordWrap(True)
+        self.feed_list.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.feed_list.setResizeMode(QListView.ResizeMode.Adjust)
+        self.feed_list.setUniformItemSizes(False)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 22, 18, 18)
