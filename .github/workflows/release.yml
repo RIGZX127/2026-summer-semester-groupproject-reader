@@ -35,7 +35,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install pyinstaller
-          pip install -e .
+          pip install .
 
       - name: Build macOS .app
         run: |
@@ -81,7 +81,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install pyinstaller
-          pip install -e .
+          pip install .
 
       - name: Build Windows .exe
         run: |
