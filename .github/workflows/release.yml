@@ -50,6 +50,7 @@ jobs:
           DMG="dist/Mercury-macos-${GITHUB_REF_NAME:-snapshot}.dmg"
           mkdir -p dist/dmg
           cp -R "$APP" dist/dmg/
+          cp RELEASE_README.md dist/dmg/使用指南.md
           ln -s /Applications dist/dmg/Applications
           hdiutil create -volname "Mercury" -srcfolder dist/dmg \
             -ov -format UDZO "$DMG"
@@ -59,13 +60,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mercury-macos
-          path: dist/Mercury-macos-*.dmg
+          path: |
+            dist/Mercury-macos-*.dmg
+            RELEASE_README.md
 
       - name: Publish GitHub Release
         if: ${{ inputs.create_release || startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Mercury-macos-*.dmg
+          files: |
+            dist/Mercury-macos-*.dmg
+            RELEASE_README.md
           generate_release_notes: true
 
   # ── Windows .exe ──────────────────────────────────────────────────────
