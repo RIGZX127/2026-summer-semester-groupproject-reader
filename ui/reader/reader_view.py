@@ -120,6 +120,7 @@ class ReaderView(QWidget):
         self.reader_splitter.addWidget(self.summary_panel)
         self.reader_splitter.setStretchFactor(0, 1)
         self.reader_splitter.setStretchFactor(1, 0)
+        self.reader_splitter.setOpaqueResize(True)
         layout.addWidget(self.reader_splitter, 1)
 
         self.toolbar.mode_changed.connect(self.set_mode)
@@ -131,6 +132,7 @@ class ReaderView(QWidget):
         self.toolbar.translation_cancel_requested.connect(self._cancel_translation)
         self.toolbar.translation_mode_changed.connect(self.set_translation_mode)
         self.summary_panel.expanded_changed.connect(self._on_summary_expanded)
+        self.reader_splitter.splitterMoved.connect(self._on_reader_splitter_moved)
         if self._agent_runtime is not None:
             self._agent_runtime.signals.state_changed.connect(self._on_agent_state_changed)
             self._agent_runtime.signals.chunk_received.connect(self._on_agent_chunk)
@@ -369,12 +371,24 @@ class ReaderView(QWidget):
         return self._original_fragment
 
     def _on_summary_expanded(self, expanded: bool) -> None:
-        if not expanded:
-            return
         sizes = self.reader_splitter.sizes()
-        if len(sizes) == 2 and sizes[1] < 140:
-            total = sum(sizes)
+        if len(sizes) != 2:
+            return
+        total = sum(sizes)
+        if expanded and sizes[1] < 140:
             self.reader_splitter.setSizes([max(240, total - 200), 200])
+        elif not expanded:
+            self.reader_splitter.setSizes([max(240, total - 44), 44])
+
+    def _on_reader_splitter_moved(self, _position: int, _index: int) -> None:
+        sizes = self.reader_splitter.sizes()
+        if len(sizes) != 2:
+            return
+        summary_height = sizes[1]
+        if self.summary_panel.is_collapsed and summary_height > 60:
+            self.summary_panel.set_expanded(True, notify=False)
+        elif not self.summary_panel.is_collapsed and summary_height <= 50:
+            self.summary_panel.set_expanded(False, notify=False)
 
     def save_ui_state(self) -> None:
         self._settings.setValue("ui/reader/vertical_splitter", self.reader_splitter.saveState())

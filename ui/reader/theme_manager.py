@@ -17,6 +17,11 @@ class ThemeManager:
         760: "clamp(18px, 6vw, 72px)",
         920: "clamp(16px, 4vw, 48px)",
     }
+    RESPONSIVE_WIDTHS = {
+        640: "clamp(640px, 68vw, 1040px)",
+        760: "clamp(760px, 78vw, 1240px)",
+        920: "clamp(920px, 88vw, 1440px)",
+    }
 
     def __init__(self, settings: QSettings | None = None, palette: Palette = LIGHT_PALETTE) -> None:
         self._settings = settings or QSettings()
@@ -77,18 +82,26 @@ class ThemeManager:
         theme = self._theme
         palette = self._palette
         horizontal_gutter = self.HORIZONTAL_GUTTERS[theme.content_width]
+        responsive_width = self.RESPONSIVE_WIDTHS[theme.content_width]
         return f"""
-        :root {{ color-scheme: {theme.color_scheme}; }}
+        :root {{ color-scheme: {theme.color_scheme};
+          --reader-content-width: {responsive_width}; }}
         html {{ background: {palette.surface}; }}
         body {{ box-sizing: border-box; width: 100%; max-width: none; margin: 0;
           padding: clamp(24px, 5vw, 48px) {horizontal_gutter} clamp(44px, 7vw, 72px);
           color: {palette.text}; background: {palette.surface};
           font: {theme.font_size}px/1.76 Georgia, "Noto Serif SC", "Source Han Serif SC", serif;
           overflow-wrap: anywhere; }}
+        body > * {{ box-sizing: border-box; width: 100%;
+          max-width: min(100%, var(--reader-content-width));
+          margin-left: auto; margin-right: auto; }}
         h1, h2, h3 {{ line-height: 1.28; }}
         .meta {{ color: {palette.text_muted}; font-family: system-ui, sans-serif; }}
         a {{ color: {palette.accent}; text-decoration-thickness: 1px; text-underline-offset: 3px; }}
         img, video, svg {{ max-width: 100%; height: auto; }}
+        body > img, figure img, p > img:only-child, p > a:only-child > img {{
+          display: block; width: 100%; object-fit: contain; }}
+        figure {{ padding: 0; }}
         table, pre {{ display: block; max-width: 100%; overflow-x: auto; }}
         pre, code {{ background: {palette.code_surface}; border-radius: 7px; }}
         code {{ font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; }}

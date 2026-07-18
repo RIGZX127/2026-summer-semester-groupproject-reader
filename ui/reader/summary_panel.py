@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSizePolicy,
+    QSpacerItem,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -29,6 +30,7 @@ class SummaryPanel(QFrame):
 
     generate_requested = Signal(int)  # entry_id
     expanded_changed = Signal(bool)
+    _COLLAPSED_HEIGHT = 44
 
     def __init__(
         self,
@@ -62,8 +64,12 @@ class SummaryPanel(QFrame):
         self._generate_btn.clicked.connect(self._cancel_or_generate)
         self._generate_btn.hide()
 
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(0, 0, 0, 0)
+        self._header_bar = QWidget()
+        self._header_bar.setObjectName("SummaryHeaderBar")
+        self._header_bar.setFixedHeight(self._COLLAPSED_HEIGHT)
+        header_row = QHBoxLayout(self._header_bar)
+        header_row.setContentsMargins(8, 4, 8, 4)
+        header_row.setSpacing(6)
         header_row.addWidget(self._header)
         header_row.addStretch()
         header_row.addWidget(self._status_label)
@@ -72,6 +78,7 @@ class SummaryPanel(QFrame):
         # ── Collapsible body ────────────────────────────────────────
         self._body = QWidget()
         self._body.setObjectName("SummaryBody")
+        self._body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._progress = QProgressBar()
         self._progress.setRange(0, 0)  # indeterminate
@@ -85,29 +92,36 @@ class SummaryPanel(QFrame):
         self._content.setReadOnly(True)
         self._content.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._content.setMinimumHeight(60)
-        self._content.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding
-        )
+        self._content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._content.hide()
 
         self._placeholder = QLabel(self.tr("点击「生成摘要」让 AI 帮你快速了解这篇文章的重点。"))
         self._placeholder.setObjectName("SummaryPlaceholder")
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._placeholder.setWordWrap(True)
+        self._placeholder.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         body_layout = QVBoxLayout(self._body)
-        body_layout.setContentsMargins(12, 8, 12, 12)
-        body_layout.setSpacing(8)
+        body_layout.setContentsMargins(12, 6, 12, 8)
+        body_layout.setSpacing(6)
         body_layout.addWidget(self._progress)
-        body_layout.addWidget(self._content)
-        body_layout.addWidget(self._placeholder)
+        body_layout.addWidget(self._content, 1)
+        body_layout.addWidget(self._placeholder, 1)
 
         # ── Root layout ─────────────────────────────────────────────
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        root.addLayout(header_row)
-        root.addWidget(self._body)
+        root.addWidget(self._header_bar, 0)
+        root.addWidget(self._body, 1)
+        self._collapsed_spacer = QSpacerItem(
+            0,
+            0,
+            QSizePolicy.Policy.Minimum,
+            QSizePolicy.Policy.Expanding,
+        )
+        root.addItem(self._collapsed_spacer)
+        self._root_layout = root
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self._body.hide()
@@ -127,6 +141,10 @@ class SummaryPanel(QFrame):
     def status(self) -> str:
         return self._status
 
+    @property
+    def is_collapsed(self) -> bool:
+        return self._collapsed
+
     def set_entry(self, entry_id: int | None) -> None:
         """Reset panel for a new article entry."""
         self._entry_id = entry_id
@@ -142,14 +160,34 @@ class SummaryPanel(QFrame):
         self._generate_btn.setText(self.tr("生成摘要"))
         self._collapsed = True
         self._header.setChecked(False)
-        self._body.hide()
+        self._set_collapsed_layout(True)
+        self.expanded_changed.emit(False)
 
     # ── Slots ───────────────────────────────────────────────────────
 
     def _toggle(self) -> None:
-        self._collapsed = not self._collapsed
-        self._body.setVisible(not self._collapsed)
-        self.expanded_changed.emit(not self._collapsed)
+        self.set_expanded(self._collapsed)
+
+    def set_expanded(self, expanded: bool, *, notify: bool = True) -> None:
+        collapsed = not expanded
+        if collapsed == self._collapsed:
+            return
+        self._header.setChecked(expanded)
+        self._set_collapsed_layout(collapsed)
+        if notify:
+            self.expanded_changed.emit(expanded)
+
+    def _set_collapsed_layout(self, collapsed: bool) -> None:
+        self._collapsed = collapsed
+        self._body.setVisible(not collapsed)
+        self._collapsed_spacer.changeSize(
+            0,
+            0,
+            QSizePolicy.Policy.Minimum,
+            QSizePolicy.Policy.Expanding if collapsed else QSizePolicy.Policy.Fixed,
+        )
+        self._root_layout.invalidate()
+        self.updateGeometry()
 
     def _request_generate(self) -> None:
         if self._entry_id is None:
@@ -281,9 +319,9 @@ class SummaryPanel(QFrame):
         return (
             '<!doctype html><html><head><meta charset="utf-8"><style>'
             "body { font-family: system-ui, -apple-system, sans-serif; "
-            "font-size: 14px; line-height: 1.7; padding: 8px 4px; }"
-            "h1,h2,h3 { line-height: 1.3; }"
-            "p { margin: 0.5em 0; }"
+            "font-size: 14px; line-height: 1.45; padding: 6px 4px; }"
+            "h1,h2,h3 { line-height: 1.25; margin: 0.55em 0 0.3em; }"
+            "p { margin: 0.3em 0; }"
             "ul,ol { padding-left: 1.5em; }"
             "code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; "
             "font-size: 0.92em; }"

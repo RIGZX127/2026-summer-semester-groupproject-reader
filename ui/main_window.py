@@ -7,7 +7,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
+from PySide6.QtGui import QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QSplitter
 from qasync import asyncSlot
 
@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
         self._settings_dialog: SettingsDialog | None = None
         self._selected_entry_id: int | None = None
         self._search_query = ""
+        self._search_scope = "feed"
         self._sidebar_visible_before_focus = True
 
         self.setWindowTitle(self.tr("Mercury RSS Reader"))
@@ -71,24 +72,24 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.splitter)
         self.statusBar().showMessage(self.tr("准备就绪"))
 
-        self.ai_settings_action = QAction(self.tr("AI 设置…"), self)
-        self.ai_settings_action.setShortcut("Ctrl+,")
-        self.ai_settings_action.setToolTip(self.tr("配置 LLM、摘要和翻译"))
-        self.ai_settings_action.triggered.connect(self.open_settings_dialog)
-        self.ai_menu = self.menuBar().addMenu(self.tr("AI"))
-        self.ai_menu.addAction(self.ai_settings_action)
-
         self.sidebar.add_feed_requested.connect(self.open_add_feed_dialog)
         self.sidebar.feed_selected.connect(self._select_feed_slot)
         self.sidebar.sync_requested.connect(self._sync_feed_slot)
+        self.sidebar.sync_all_requested.connect(self._sync_all_slot)
+        self.sidebar.feed_rename_requested.connect(self._rename_feed_slot)
+        self.sidebar.feed_delete_requested.connect(self._delete_feed_slot)
         self.sidebar.ai_settings_requested.connect(self.open_settings_dialog)
         self.sidebar.collapse_requested.connect(self._hide_sidebar)
         self.entry_list.entry_selected.connect(self._select_entry_slot)
         self.entry_list.retry_requested.connect(self._retry_entries)
         self.entry_list.search_requested.connect(self._search_entries_slot)
+        self.entry_list.search_scope_changed.connect(self._search_scope_slot)
         self.entry_list.mark_read_requested.connect(self._mark_read_slot)
         self.entry_list.star_requested.connect(self._toggle_star_slot)
         self.entry_list.delete_requested.connect(self._delete_entry_slot)
+        self.entry_list.batch_mark_read_requested.connect(self._batch_mark_read_slot)
+        self.entry_list.batch_star_requested.connect(self._batch_toggle_star_slot)
+        self.entry_list.batch_delete_requested.connect(self._batch_delete_slot)
         self.reader_view.retry_requested.connect(self._retry_reader)
         self.reader_view.toolbar.sidebar_restore_requested.connect(self._show_sidebar)
         self.reader_view.toolbar.focus_mode_changed.connect(self._set_focus_mode)
@@ -158,6 +159,8 @@ class MainWindow(QMainWindow):
         state.selected_feed_id = feed_id
         self._selected_entry_id = None
         self._search_query = ""
+        self._search_scope = "feed"
+        self.entry_list.set_search_scope("feed", notify=False)
         self.entry_list.search_edit.clear()
         request_id = str(uuid.uuid4())
         self._feed_request_id = request_id
@@ -257,26 +260,47 @@ class MainWindow(QMainWindow):
 
     async def refresh_entries(self) -> None:
         feed_id = state.selected_feed_id
-        if feed_id is None:
+        global_search = self._search_scope == "all" and bool(self._search_query)
+        if feed_id is None and not global_search:
             return
         request_id = str(uuid.uuid4())
         self._feed_request_id = request_id
         try:
             if self._search_query:
-                entries = await self._entry_store.search(self._search_query, feed_id=feed_id)
+                search_feed_id = None if self._search_scope == "all" else feed_id
+                entries = await self._entry_store.search(
+                    self._search_query, feed_id=search_feed_id
+                )
             else:
+                if feed_id is None:
+                    return
                 entries = await self._entry_store.list_by_feed(feed_id)
         except Exception as exc:  # noqa: BLE001
             if self._feed_request_id == request_id:
                 self.statusBar().showMessage(self.tr("文章刷新失败：{0}").format(str(exc)), 6000)
             return
-        if self._feed_request_id == request_id and state.selected_feed_id == feed_id:
+        selection_is_current = self._search_scope == "all" or state.selected_feed_id == feed_id
+        if self._feed_request_id == request_id and selection_is_current:
             self.entry_list.set_entries(entries)
 
     async def search_entries(self, query: str) -> None:
         self._search_query = query.strip()
+        if self._search_scope == "all" and not self._search_query:
+            self.entry_list.set_entries([])
+            self.entry_list.set_state("disabled", self.tr("输入关键词搜索全部订阅。"))
+            return
         self.entry_list.set_state("loading")
         await self.refresh_entries()
+
+    async def set_search_scope(self, scope: str) -> None:
+        self._search_scope = scope if scope in {"feed", "all"} else "feed"
+        if self._search_query:
+            await self.search_entries(self._search_query)
+        elif self._search_scope == "all":
+            self.entry_list.set_entries([])
+            self.entry_list.set_state("disabled", self.tr("输入关键词搜索全部订阅。"))
+        elif state.selected_feed_id is not None:
+            await self.select_feed(state.selected_feed_id)
 
     async def mark_entry_read(self, entry_id: int, read: bool) -> None:
         try:
@@ -325,8 +349,127 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(self.tr("文章已删除"), 4000)
 
+    async def batch_mark_entries_read(self, entry_ids: list[int], read: bool) -> None:
+        if not entry_ids:
+            return
+        try:
+            for entry_id in entry_ids:
+                if read:
+                    await self._entry_store.mark_read(entry_id)
+                else:
+                    await self._entry_store.mark_unread(entry_id)
+            await self.refresh_entries()
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("批量更新已读状态失败：{0}").format(str(exc)), 6000
+            )
+            return
+        self.statusBar().showMessage(self.tr("已更新 {0} 篇文章").format(len(entry_ids)), 4000)
+
+    async def batch_toggle_entries_star(self, entry_ids: list[int]) -> None:
+        if not entry_ids:
+            return
+        try:
+            for entry_id in entry_ids:
+                await self._entry_store.toggle_star(entry_id)
+            await self.refresh_entries()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(self.tr("批量收藏失败：{0}").format(str(exc)), 6000)
+            return
+        self.statusBar().showMessage(
+            self.tr("已切换 {0} 篇文章的收藏状态").format(len(entry_ids)), 4000
+        )
+
+    def confirm_batch_delete(self, count: int) -> bool:
+        result = QMessageBox.question(
+            self,
+            self.tr("批量删除文章"),
+            self.tr("确定删除选中的 {0} 篇文章吗？此操作当前无法撤销。").format(count),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return result == QMessageBox.StandardButton.Yes
+
+    async def batch_delete_entries(self, entry_ids: list[int]) -> None:
+        if not entry_ids or not self.confirm_batch_delete(len(entry_ids)):
+            return
+        try:
+            for entry_id in entry_ids:
+                await self._entry_store.soft_delete(entry_id)
+            if self._selected_entry_id in entry_ids:
+                self._selected_entry_id = None
+                self._entry_request_id = None
+                self.reader_view.show_empty()
+            await self.refresh_entries()
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(self.tr("批量删除失败：{0}").format(str(exc)), 6000)
+            return
+        self.entry_list.set_batch_mode(False)
+        self.statusBar().showMessage(self.tr("已删除 {0} 篇文章").format(len(entry_ids)), 4000)
+
     async def sync_feed(self, feed_id: int) -> None:
         await self._sync_service.sync_feed(feed_id)
+
+    async def sync_all_feeds(self) -> None:
+        self.statusBar().showMessage(self.tr("正在同步全部订阅…"))
+        try:
+            await self._sync_service.sync_all()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("同步全部订阅失败：{0}").format(str(exc)), 7000
+            )
+
+    async def rename_feed(self, feed_id: int, title: str) -> None:
+        title = title.strip()
+        if not title:
+            return
+        try:
+            await self._feed_store.update(feed_id, title=title, favicon_url=None)
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("重命名订阅失败：{0}").format(str(exc)), 6000
+            )
+            return
+        self.statusBar().showMessage(self.tr("订阅已重命名"), 4000)
+
+    def confirm_feed_delete(self, title: str) -> bool:
+        result = QMessageBox.question(
+            self,
+            self.tr("删除订阅"),
+            self.tr("确定删除“{0}”吗？该订阅下的文章也会被移除。").format(title),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return result == QMessageBox.StandardButton.Yes
+
+    async def delete_feed(self, feed_id: int) -> None:
+        feed_title = next(
+            (feed.title or feed.url for feed in state.feeds if feed.id == feed_id),
+            self.tr("该订阅源"),
+        )
+        if not self.confirm_feed_delete(feed_title):
+            return
+        try:
+            await self._feed_store.delete(feed_id)
+            if state.selected_feed_id == feed_id:
+                state.selected_feed_id = None
+                self._selected_entry_id = None
+                self._feed_request_id = None
+                self._entry_request_id = None
+                self.entry_list.search_edit.clear()
+                self.entry_list.set_entries([])
+                self.entry_list.set_state("disabled", self.tr("请选择其他订阅源。"))
+                self.reader_view.show_empty()
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("删除订阅失败：{0}").format(str(exc)), 6000
+            )
+            return
+        self.statusBar().showMessage(self.tr("订阅已删除"), 4000)
 
     @asyncSlot(int)
     async def _select_feed_slot(self, feed_id: int) -> None:
@@ -339,6 +482,18 @@ class MainWindow(QMainWindow):
     @asyncSlot(int)
     async def _sync_feed_slot(self, feed_id: int) -> None:
         await self.sync_feed(feed_id)
+
+    @asyncSlot()
+    async def _sync_all_slot(self) -> None:
+        await self.sync_all_feeds()
+
+    @asyncSlot(int, str)
+    async def _rename_feed_slot(self, feed_id: int, title: str) -> None:
+        await self.rename_feed(feed_id, title)
+
+    @asyncSlot(int)
+    async def _delete_feed_slot(self, feed_id: int) -> None:
+        await self.delete_feed(feed_id)
 
     @asyncSlot(str)
     async def _add_feed_slot(self, url: str) -> None:
@@ -358,6 +513,10 @@ class MainWindow(QMainWindow):
     async def _search_entries_slot(self, query: str) -> None:
         await self.search_entries(query)
 
+    @asyncSlot(str)
+    async def _search_scope_slot(self, scope: str) -> None:
+        await self.set_search_scope(scope)
+
     @asyncSlot(int, bool)
     async def _mark_read_slot(self, entry_id: int, read: bool) -> None:
         await self.mark_entry_read(entry_id, read)
@@ -369,6 +528,18 @@ class MainWindow(QMainWindow):
     @asyncSlot(int)
     async def _delete_entry_slot(self, entry_id: int) -> None:
         await self.delete_entry(entry_id)
+
+    @asyncSlot(list, bool)
+    async def _batch_mark_read_slot(self, entry_ids: list[int], read: bool) -> None:
+        await self.batch_mark_entries_read(entry_ids, read)
+
+    @asyncSlot(list)
+    async def _batch_toggle_star_slot(self, entry_ids: list[int]) -> None:
+        await self.batch_toggle_entries_star(entry_ids)
+
+    @asyncSlot(list)
+    async def _batch_delete_slot(self, entry_ids: list[int]) -> None:
+        await self.batch_delete_entries(entry_ids)
 
     def _on_sync_started(self, feed_id: int) -> None:
         self.sidebar.set_feed_error(feed_id, None)

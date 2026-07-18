@@ -13,19 +13,13 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     p = palette
     return f"""
     QWidget {{ color: {p.text}; font-size: 14px; selection-background-color: {p.accent}; }}
+    QToolTip {{ color: {p.text}; background: {p.surface}; border: 1px solid {p.border_strong};
+        padding: 6px 8px; border-radius: 6px; }}
     QMainWindow, QWidget#ContentSurface, QDialog {{ background: {p.window}; }}
     QWidget#Sidebar {{ background: {p.sidebar}; color: #EAF0ED; }}
     QWidget#Sidebar QLabel {{ color: #EAF0ED; }}
     QLabel#AppTitle {{ font-size: 21px; font-weight: 700; }}
     QLabel#SidebarSection {{ color: #A7B7B1; font-weight: 600; }}
-    QWidget#AIWorkspaceCard {{ background: {p.sidebar_hover}; border: 1px solid {p.sidebar_selected};
-        border-radius: {RADIUS["panel"]}px; }}
-    QLabel#AIWorkspaceTitle {{ color: #FFFFFF; font-size: 15px; font-weight: 700; }}
-    QLabel#AIWorkspaceDescription {{ color: #BFD0CA; font-size: 12px; }}
-    QPushButton#AIWorkspaceButton {{ color: {p.sidebar}; background: #E4F0EC;
-        border-color: #E4F0EC; font-weight: 700; }}
-    QPushButton#AIWorkspaceButton:hover {{ color: {p.sidebar}; background: #FFFFFF;
-        border-color: #FFFFFF; }}
     QLabel#SectionTitle {{ font-size: 18px; font-weight: 650; }}
     QLabel#MutedLabel, QLabel#StateMessage {{ color: {p.text_muted}; }}
     QLabel#ErrorLabel {{ color: {p.error}; }}
@@ -52,39 +46,62 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton#PrimaryButton:hover, QPushButton[buttonRole="primary"]:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
     QPushButton#PrimaryButton:pressed, QPushButton[buttonRole="primary"]:pressed {{ background: {p.accent_pressed}; border-color: {p.accent_pressed}; }}
     QPushButton#DangerButton:hover {{ color: {p.error}; background: {p.error_soft}; border-color: {p.error}; }}
-    QWidget#ReaderToolbar QPushButton {{ min-height: 34px; color: {p.text_muted}; background: transparent; border-color: transparent; }}
+    QWidget#ReaderToolbar QPushButton {{ min-width: 28px; max-width: 28px;
+        min-height: 28px; max-height: 28px; padding: 0; color: {p.text_muted};
+        background: transparent; border-color: transparent; }}
     QWidget#ReaderToolbar QPushButton:hover {{ color: {p.text}; background: {p.surface_hover}; }}
     QWidget#ReaderToolbar QPushButton:checked {{ color: {p.text_on_accent}; background: {p.accent}; border-color: {p.accent}; }}
-    QWidget#ReaderToolbar QPushButton#FocusModeButton {{ padding: 0; border: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QPushButton#FocusModeButton {{ padding: 0; background: {p.control};
+        border: 1px solid {p.border}; }}
     QWidget#ReaderToolbar QPushButton#FocusModeButton:checked {{ color: {p.text_on_accent}; background: {p.accent}; }}
     QWidget#ReaderToolbar QPushButton#SidebarRestoreButton {{ padding: 0; border: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QPushButton#TranslateButton {{ padding: 0; border: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QComboBox, QWidget#ReaderToolbar QSpinBox {{ min-height: 32px;
+        padding: 0 6px; }}
     QSplitter#ReaderSummarySplitter::handle {{ height: 7px; background: {p.border}; }}
     QSplitter#ReaderSummarySplitter::handle:hover {{ background: {p.accent}; }}
     QFrame#SummaryPanel {{ background: {p.surface}; border-top: 1px solid {p.border}; }}
+    QWidget#SummaryHeaderBar {{ background: {p.surface}; border-bottom: 1px solid {p.border}; }}
     QPushButton#SummaryHeader {{ border: 0; background: transparent; text-align: left; font-weight: 650; }}
     QLabel#SummaryStatus {{ color: {p.text_muted}; }}
     QLabel#SummaryPlaceholder {{ color: {p.text_muted}; padding: 12px; }}
     QTextBrowser#SummaryContent {{ color: {p.text}; background: {p.surface}; border: 0; }}
+    QWidget#EntryBatchToolbar {{ background: {p.surface_alt}; border: 1px solid {p.border};
+        border-radius: {RADIUS["control"]}px; }}
+    QLabel#BatchCountLabel {{ color: {p.text_muted}; font-weight: 600; }}
+    QPushButton#EntryHeaderIconButton, QPushButton#BatchActionButton {{ min-width: 28px; max-width: 28px;
+        min-height: 28px; max-height: 28px; padding: 0; }}
     QGroupBox {{ margin-top: 12px; padding-top: 14px; border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; font-weight: 650; }}
     QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 4px; }}
     QTabWidget::pane {{ border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; background: {p.surface}; }}
     QWidget#Sidebar QPushButton {{ color: white; background: {p.sidebar_selected}; border-color: {p.sidebar_hover}; }}
-    QWidget#Sidebar QPushButton#SidebarCollapseButton {{ padding: 0; background: transparent; border-color: transparent; }}
+    QWidget#Sidebar QPushButton#SidebarCollapseButton {{ min-width: 28px; max-width: 28px;
+        min-height: 28px; max-height: 28px; padding: 0; background: transparent;
+        border-color: transparent; }}
     QWidget#Sidebar QPushButton#SidebarCollapseButton:hover {{ background: {p.sidebar_hover}; border-color: {p.sidebar_selected}; }}
-    QWidget#Sidebar QPushButton#AIWorkspaceButton {{ color: {p.sidebar}; background: #E4F0EC;
-        border-color: #E4F0EC; font-weight: 700; }}
-    QWidget#Sidebar QPushButton#AIWorkspaceButton:hover {{ color: {p.sidebar}; background: #FFFFFF;
-        border-color: #FFFFFF; }}
+    QWidget#Sidebar QPushButton#SidebarActionButton {{ min-width: 28px; max-width: 28px;
+        min-height: 28px; max-height: 28px; padding: 0; background: transparent;
+        border-color: {p.sidebar_selected}; }}
+    QWidget#Sidebar QPushButton#SidebarActionButton:hover {{ background: {p.sidebar_hover};
+        border-color: #8CA29A; }}
     QLineEdit, QComboBox, QSpinBox {{ min-height: 36px; padding: 0 10px; color: {p.text};
         background: {p.control}; border: 1px solid {p.border}; border-radius: {RADIUS["control"]}px; }}
     QLineEdit:hover, QComboBox:hover, QSpinBox:hover {{ border-color: {p.border_strong}; }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid {p.focus}; }}
     QLineEdit[validationError="true"] {{ border: 1px solid {p.error}; }}
+    QComboBox#SearchScopeSelector {{ padding-left: 8px; padding-right: 4px; }}
     QComboBox[readerControl="true"], QSpinBox[readerControl="true"] {{
         color: {p.text}; background: {p.control}; border-color: {p.border};
     }}
     QComboBox[readerControl="true"] QAbstractItemView {{ color: {p.text}; background: {p.control};
         selection-color: {p.text_on_accent}; selection-background-color: {p.accent}; border: 1px solid {p.border}; outline: 0; }}
+    QWidget#ReaderToolbar QPushButton#ReaderPopupButton {{ min-width: 28px; max-width: 28px;
+        min-height: 28px; max-height: 28px; padding: 0; background: {p.control};
+        border: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QPushButton#ReaderPopupButton:hover {{ background: {p.surface_hover};
+        border-color: {p.border_strong}; }}
+    QWidget#ReaderToolbar QPushButton#ReaderPopupButton:focus {{ background: {p.surface};
+        border: 1px solid {p.focus}; }}
     QMenu {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; padding: 6px; }}
     QMenu::item {{ padding: 7px 24px 7px 10px; border-radius: 6px; }}
     QMenu::item:selected {{ background: {p.accent_soft}; }}
