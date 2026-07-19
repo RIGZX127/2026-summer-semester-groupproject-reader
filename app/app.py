@@ -25,6 +25,7 @@ from core.reader.pipeline import ReaderPipeline
 from store.db import DatabaseManager
 from store.entry_store import EntryStore
 from store.feed_store import FeedStore
+from store.collection_store import CollectionStore
 from store.note_store import NoteStore
 from store.tag_store import TagStore
 from ui.main_window import MainWindow
@@ -277,6 +278,7 @@ class MercuryApp:
             note_store=NoteStore(state.db),
             digest_controller=DigestController(state.db),
             opml_controller=OPMLController(state.db),
+            collection_store=CollectionStore(state.db),
         )
 
         app = QApplication.instance()

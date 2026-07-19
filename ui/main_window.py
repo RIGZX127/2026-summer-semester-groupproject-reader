@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from core.reader.pipeline import ReaderPipeline
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+    from store.collection_store import CollectionStore
     from store.note_store import NoteStore
     from store.tag_store import TagStore
 
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         note_store: NoteStore | None = None,
         digest_controller: DigestController | None = None,
         opml_controller: OPMLController | None = None,
+        collection_store: CollectionStore | None = None,
     ) -> None:
         super().__init__()
         self._feed_store = feed_store
@@ -57,6 +59,7 @@ class MainWindow(QMainWindow):
         self._note_store = note_store
         self._digest_controller = digest_controller
         self._opml_controller = opml_controller
+        self._collection_store = collection_store
         self._settings = settings or QSettings()
         self._feed_request_id: str | None = None
         self._entry_request_id: str | None = None

@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import sqlite3
 
-CURRENT_VERSION: int = 1
+CURRENT_VERSION: int = 2
 
 
 def migrate(conn: sqlite3.Connection) -> None:
     version: int = conn.execute("PRAGMA user_version").fetchone()[0]
     migrations = [
         (1, _migration_v1),
+        (2, _migration_v2),
     ]
     for target_version, fn in migrations:
         if version < target_version:
@@ -124,4 +125,28 @@ def _migration_v1(conn: sqlite3.Connection) -> None:
         key   TEXT NOT NULL PRIMARY KEY,
         value TEXT NOT NULL DEFAULT ''
     );
+    """)
+
+
+def _migration_v2(conn: sqlite3.Connection) -> None:
+    """创建收藏夹表（collections + collection_entries）。"""
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS collections (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT    NOT NULL,
+        description TEXT    NOT NULL DEFAULT '',
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_default  INTEGER NOT NULL DEFAULT 0,
+        created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+        updated_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_entries (
+        collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+        entry_id      INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+        added_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+        PRIMARY KEY (collection_id, entry_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_collection_entries_entry
+        ON collection_entries(entry_id);
     """)
