@@ -1,4 +1,4 @@
-﻿# store/entry_store.py
+# store/entry_store.py
 """EntryStore：文章（Entry）的数据访问层（Phase 1 子集）。
 
 Phase 2 将在此基础上扩展 mark_read / toggle_star / search / soft_delete 等方法。
@@ -291,3 +291,44 @@ class EntryStore:
         """软删除：is_deleted=1，物理数据保留。entry_id 不存在时静默忽略。"""
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._sync_soft_delete, entry_id)
+
+    # ══════════════════════════════════════════════════════════════════
+    #  Phase 3 — 按文章 ID 批量管理
+    # ══════════════════════════════════════════════════════════════════
+
+    def _sync_batch_mark_read_ids(self, entry_ids: list[int], value: int) -> int:
+        """批量设置多篇文章的已读状态。返回实际更新行数。"""
+        if not entry_ids:
+            return 0
+        placeholders = ",".join("?" * len(entry_ids))
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE entries SET is_read = ? WHERE id IN (" + placeholders + ")",
+                [value, *entry_ids],
+            )
+        return cur.rowcount
+
+    def _sync_batch_soft_delete(self, entry_ids: list[int]) -> int:
+        """批量软删除多篇文章。返回实际更新行数。"""
+        if not entry_ids:
+            return 0
+        placeholders = ",".join("?" * len(entry_ids))
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE entries SET is_deleted = 1 WHERE id IN (" + placeholders + ")",
+                list(entry_ids),
+            )
+        return cur.rowcount
+
+    async def batch_mark_read_ids(self, entry_ids: list[int], value: int) -> int:
+        """批量设置多篇文章的已读状态（value=1 已读，0 未读）。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, self._sync_batch_mark_read_ids, list(entry_ids), value
+        )
+
+    async def batch_soft_delete(self, entry_ids: list[int]) -> int:
+        """批量软删除多篇文章（is_deleted=1）。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_batch_soft_delete, list(entry_ids))
+

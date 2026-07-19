@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QSplitter
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter
 from qasync import asyncSlot
 
 from app.state import state
@@ -90,6 +90,20 @@ class MainWindow(QMainWindow):
         self.ai_menu = self.menuBar().addMenu(self.tr("AI"))
         self.ai_menu.addAction(self.ai_settings_action)
 
+        self.import_opml_action = QAction(self.tr("导入 OPML…"), self)
+        self.import_opml_action.setShortcut("Ctrl+Shift+I")
+        self.import_opml_action.setToolTip(self.tr("从 OPML 文件批量导入订阅源"))
+        self.import_opml_action.triggered.connect(self._import_opml_slot)
+
+        self.export_opml_action = QAction(self.tr("导出 OPML…"), self)
+        self.export_opml_action.setShortcut("Ctrl+Shift+E")
+        self.export_opml_action.setToolTip(self.tr("将全部订阅源导出为 OPML 文件"))
+        self.export_opml_action.triggered.connect(self._export_opml_slot)
+
+        self.feed_menu = self.menuBar().addMenu(self.tr("订阅"))
+        self.feed_menu.addAction(self.import_opml_action)
+        self.feed_menu.addAction(self.export_opml_action)
+
         self.sidebar.add_feed_requested.connect(self.open_add_feed_dialog)
         self.sidebar.feed_selected.connect(self._select_feed_slot)
         self.sidebar.sync_requested.connect(self._sync_feed_slot)
@@ -101,6 +115,9 @@ class MainWindow(QMainWindow):
         self.entry_list.mark_read_requested.connect(self._mark_read_slot)
         self.entry_list.star_requested.connect(self._toggle_star_slot)
         self.entry_list.delete_requested.connect(self._delete_entry_slot)
+        self.entry_list.bulk_mark_read_requested.connect(self._bulk_mark_read_slot)
+        self.entry_list.bulk_mark_unread_requested.connect(self._bulk_mark_unread_slot)
+        self.entry_list.bulk_delete_requested.connect(self._bulk_delete_slot)
         self.reader_view.retry_requested.connect(self._retry_reader)
         self.reader_view.toolbar.sidebar_restore_requested.connect(self._show_sidebar)
         self.reader_view.toolbar.focus_mode_changed.connect(self._set_focus_mode)
@@ -356,6 +373,85 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(self.tr("文章已删除"), 4000)
 
+    def confirm_bulk_delete(self, count: int) -> bool:
+        result = QMessageBox.question(
+            self,
+            self.tr("批量删除文章"),
+            self.tr("确定要删除选中的 {0} 篇文章吗？此操作当前无法撤销。").format(count),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return result == QMessageBox.StandardButton.Yes
+
+    async def bulk_mark_entries(self, entry_ids: list[int], read: bool) -> None:
+        if not entry_ids:
+            return
+        try:
+            updated = await self._entry_store.batch_mark_read_ids(entry_ids, 1 if read else 0)
+            await self.refresh_entries()
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(self.tr("批量更新已读状态失败：{0}").format(str(exc)), 6000)
+            return
+        message = (
+            self.tr("已将 {0} 篇文章标记为已读")
+            if read
+            else self.tr("已将 {0} 篇文章标记为未读")
+        )
+        self.statusBar().showMessage(message.format(updated), 4000)
+
+    async def bulk_delete_entries(self, entry_ids: list[int]) -> None:
+        if not entry_ids:
+            return
+        if not self.confirm_bulk_delete(len(entry_ids)):
+            return
+        try:
+            deleted = await self._entry_store.batch_soft_delete(entry_ids)
+            if self._selected_entry_id in set(entry_ids):
+                self._selected_entry_id = None
+                self._entry_request_id = None
+                self.reader_view.show_empty()
+            await self.refresh_entries()
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(self.tr("批量删除失败：{0}").format(str(exc)), 6000)
+            return
+        self.statusBar().showMessage(self.tr("已删除 {0} 篇文章").format(deleted), 4000)
+
+    async def import_opml_file(self, path: str) -> None:
+        if self._opml_controller is None:
+            QMessageBox.warning(self, self.tr("导入 OPML"), self.tr("OPML 控制器未初始化。"))
+            return
+        self.statusBar().showMessage(self.tr("正在导入 OPML…"))
+        try:
+            result = await self._opml_controller.import_feeds_from_opml(path)
+            await self.load_feeds()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, self.tr("导入 OPML 失败"), str(exc))
+            self.statusBar().showMessage(self.tr("OPML 导入失败"), 6000)
+            return
+        self.statusBar().showMessage(
+            self.tr("OPML 导入完成：新增 {0} 个，跳过 {1} 个，失败 {2} 个").format(
+                len(result.success), len(result.skipped), len(result.failed)
+            ),
+            8000,
+        )
+
+    async def export_opml_file(self, path: str) -> None:
+        if self._opml_controller is None:
+            QMessageBox.warning(self, self.tr("导出 OPML"), self.tr("OPML 控制器未初始化。"))
+            return
+        if not path.lower().endswith((".opml", ".xml")):
+            path += ".opml"
+        self.statusBar().showMessage(self.tr("正在导出 OPML…"))
+        try:
+            out_path = await self._opml_controller.export_feeds_to_opml(path)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, self.tr("导出 OPML 失败"), str(exc))
+            self.statusBar().showMessage(self.tr("OPML 导出失败"), 6000)
+            return
+        self.statusBar().showMessage(self.tr("OPML 已导出：{0}").format(out_path), 8000)
+
     async def sync_feed(self, feed_id: int) -> None:
         await self._sync_service.sync_feed(feed_id)
 
@@ -400,6 +496,41 @@ class MainWindow(QMainWindow):
     @asyncSlot(int)
     async def _delete_entry_slot(self, entry_id: int) -> None:
         await self.delete_entry(entry_id)
+
+
+    @asyncSlot(object)
+    async def _bulk_mark_read_slot(self, entry_ids: list[int]) -> None:
+        await self.bulk_mark_entries(list(entry_ids), True)
+
+    @asyncSlot(object)
+    async def _bulk_mark_unread_slot(self, entry_ids: list[int]) -> None:
+        await self.bulk_mark_entries(list(entry_ids), False)
+
+    @asyncSlot(object)
+    async def _bulk_delete_slot(self, entry_ids: list[int]) -> None:
+        await self.bulk_delete_entries(list(entry_ids))
+
+    @asyncSlot()
+    async def _import_opml_slot(self) -> None:
+        path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            self.tr("导入 OPML"),
+            "",
+            self.tr("OPML 文件 (*.opml *.xml);;所有文件 (*.*)"),
+        )
+        if path:
+            await self.import_opml_file(path)
+
+    @asyncSlot()
+    async def _export_opml_slot(self) -> None:
+        path, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            self.tr("导出 OPML"),
+            "mercury_subscriptions.opml",
+            self.tr("OPML 文件 (*.opml);;XML 文件 (*.xml);;所有文件 (*.*)"),
+        )
+        if path:
+            await self.export_opml_file(path)
 
     def _on_sync_started(self, feed_id: int) -> None:
         self.sidebar.set_feed_error(feed_id, None)

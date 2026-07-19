@@ -94,4 +94,13 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QScrollBar::handle:vertical {{ min-height: 28px; border-radius: 4px; background: {p.border_strong}; }}
     QScrollBar::handle:vertical:hover {{ background: {p.text_muted}; }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+
+    QWidget#BulkActionBar {{ background: {p.accent_soft}; border-bottom: 1px solid {p.border}; padding: 4px 0; }}
+    QLabel#BulkCountLabel {{ font-weight: 650; color: {p.text}; }}
+    QPushButton#BulkDeleteButton {{ color: {p.error}; border-color: {p.error}; }}
+    QPushButton#BulkDeleteButton:hover {{ background: {p.error_soft}; }}
+    QPushButton[buttonRole="danger"] {{ color: {p.error}; border-color: {p.error}; }}
+    QPushButton[buttonRole="danger"]:hover {{ background: {p.error_soft}; }}
+    QFrame#SummarySeparator {{ color: {p.border}; }}
+    QComboBox#SummaryLineHeightCombo {{ min-height: 28px; font-size: 12px; padding: 0 6px; }}
     """
