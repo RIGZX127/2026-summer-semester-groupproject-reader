@@ -186,12 +186,30 @@ class TranslationAgent:
         failed_segments: list[_Segment] = []
 
         async def translate_one(seg: _Segment, prev: _Segment | None) -> None:
-            async with sem:
-                await self._translate_segment(
-                    seg, prev, tpl, run_id, entry_id
+            try:
+                async with sem:
+                    await self._translate_segment(
+                        seg, prev, tpl, run_id, entry_id
+                    )
+                # 段完成 — 广播 segment_done
+                seg_html = self._render_segment_pair(seg)
+                self._broadcast_event(
+                    run_id, entry_id,
+                    {
+                        "type": "segment_done",
+                        "index": seg.index,
+                        "translation": seg.translation,
+                        "html": seg_html,
+                    },
+                )
+            except Exception as exc:
+                seg.error = str(exc)
+                self._broadcast_event(
+                    run_id, entry_id,
+                    {"type": "segment_error", "index": seg.index, "error": str(exc)},
                 )
             # 更新进度
-            done = sum(1 for s in segments if s.translation)
+            done = sum(1 for s in segments if s.translation or s.error)
             self._broadcast_progress(run_id, entry_id, done / total)
 
         # 顺序提交（确保上下文正确），并发执行受 sem 控制
@@ -236,7 +254,7 @@ class TranslationAgent:
         if self._runtime:
             self._runtime.broadcast_chunk(run_id, entry_id, "translation", bilingual_html)
 
-        return {
+        result = {
             "html": bilingual_html,
             "paragraphs_total": total,
             "paragraphs_success": success_count,
@@ -247,6 +265,27 @@ class TranslationAgent:
             "model": model_name,
             "_cache_key": cache_key,
         }
+
+        # 广播翻译完成事件（含纯文本用于全文对比模式）
+        self._broadcast_event(
+            run_id, entry_id,
+            {
+                "type": "translation_done",
+                "html": bilingual_html,
+                "paragraphs_total": total,
+                "paragraphs_success": success_count,
+                "paragraphs_failed": len(failed_segments),
+                "failed_segment_indices": [s.index for s in failed_segments],
+                "original_text": "\n\n".join(s.text for s in segments),
+                "translated_text": "\n\n".join(
+                    s.translation or f"[error: {s.error}]" if s.error else s.translation or ""
+                    for s in segments
+                ),
+                "target_language": self.target_language,
+            },
+        )
+
+        return result
 
     # ── 内部分段 ─────────────────────────────────────────────────────────
 
@@ -311,29 +350,40 @@ class TranslationAgent:
             max_tokens=tpl.config.get("max_tokens", 2048),
         ):
             parts.append(chunk)
+            # 即时广播每个 chunk（段内打字机效果）
+            self._broadcast_event(
+                run_id, entry_id,
+                {"type": "segment_chunk", "index": seg.index, "text": chunk},
+            )
 
         seg.translation = "".join(parts)
 
-    # ── 组装 ─────────────────────────────────────────────────────────────
+    # ── 渲染 ─────────────────────────────────────────────────────────────
+
+    def _render_segment_pair(self, seg: _Segment) -> str:
+        """渲染单个段的原文+译文 HTML 对。"""
+        translation = seg.translation or (
+            f'<span class="mercury-error">{seg.error}</span>'
+            if seg.error
+            else '<span class="mercury-pending">...</span>'
+        )
+        return _BLOCK_HTML.format(
+            original=seg.html,
+            translation=f"<p>{translation}</p>",
+        )
 
     def _assemble_html(self, segments: list[_Segment]) -> str:
         """将原文和译文组装为双语 HTML。"""
-        blocks: list[str] = []
-        for seg in segments:
-            translation = seg.translation or (
-                f'<span class="mercury-error">{seg.error}</span>'
-                if seg.error
-                else '<span class="mercury-pending">[translation pending]</span>'
-            )
-            blocks.append(
-                _BLOCK_HTML.format(
-                    original=seg.html,
-                    translation=f"<p>{translation}</p>",
-                )
-            )
-        return "\n".join(blocks)
+        return "\n".join(self._render_segment_pair(seg) for seg in segments)
 
-    # ── 进度广播 ─────────────────────────────────────────────────────────
+    # ── 事件广播 ─────────────────────────────────────────────────────────
+
+    def _broadcast_event(
+        self, run_id: str, entry_id: int, payload: dict
+    ) -> None:
+        """广播 JSON 事件到 UI。通过 chunk_received 信号发送。"""
+        if self._runtime:
+            self._runtime.broadcast_chunk(run_id, entry_id, "translation", json.dumps(payload, ensure_ascii=False))
 
     def _broadcast_progress(
         self, run_id: str, entry_id: int, progress: float

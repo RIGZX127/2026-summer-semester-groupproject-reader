@@ -60,6 +60,8 @@ class ReaderView(QWidget):
         self._translation_mode = "original"
         self._active_translation_run_id: str | None = None
         self._current_entry_id: int | None = None
+        self._contrast_original: str = ""
+        self._contrast_translated: str = ""
 
         self._auto_summary_timer = QTimer(self)
         self._auto_summary_timer.setSingleShot(True)
@@ -336,12 +338,73 @@ class ReaderView(QWidget):
 
         evt: AgentUIEvent = event
         if (
-            evt.agent_type == "translation"
-            and evt.entry_id == self._current_entry_id
-            and evt.run_id == self._active_translation_run_id
-            and "mercury-trans-block" in evt.chunk
+            evt.agent_type != "translation"
+            or evt.entry_id != self._current_entry_id
+            or evt.run_id != self._active_translation_run_id
         ):
+            return
+
+        # 新协议: JSON 事件
+        try:
+            payload = json.loads(evt.chunk)
+            event_type = payload.get("type", "")
+        except (json.JSONDecodeError, TypeError):
+            event_type = ""
+
+        if event_type == "segment_chunk":
+            # 段内流式 chunk — 不重新渲染（避免频繁刷新），仅积累
+            pass
+        elif event_type == "segment_done":
+            self._on_segment_done(payload)
+        elif event_type == "segment_error":
+            self._on_segment_error(payload)
+        elif event_type == "translation_done":
+            self._on_translation_done(payload)
+        elif "mercury-trans-block" in evt.chunk:
+            # 旧格式兼容：完整双语 HTML
             self._set_translation_html(evt.chunk)
+
+    def _on_segment_done(self, payload: dict) -> None:
+        """段翻译完成：增量更新双语 HTML，立即显示该段。"""
+        segment_html = str(payload.get("html", ""))
+        if not segment_html:
+            return
+        # 合并到现有双语片段中
+        self._merge_segment_html(int(payload.get("index", 0)), segment_html)
+        self.toolbar.show_translation_modes(True)
+        self.set_translation_mode("bilingual")
+
+    def _merge_segment_html(self, index: int, seg_html: str) -> None:
+        """将段 HTML 按索引合并到双语片段中（去重替换）。"""
+        from bs4 import BeautifulSoup
+
+        if not self._bilingual_fragment:
+            self._bilingual_fragment = seg_html
+        else:
+            soup = BeautifulSoup(self._bilingual_fragment, "html.parser")
+            existing_blocks = soup.select(".mercury-trans-block")
+            if index < len(existing_blocks):
+                existing_blocks[index].replace_with(
+                    BeautifulSoup(seg_html, "html.parser")
+                )
+            else:
+                soup.append(BeautifulSoup(seg_html, "html.parser"))
+            self._bilingual_fragment = str(soup)
+        self._rerender_reader()
+
+    def _on_segment_error(self, payload: dict) -> None:
+        """段翻译失败 — 不阻塞，由 translation_done 汇总。"""
+        pass
+
+    def _on_translation_done(self, payload: dict) -> None:
+        """翻译全部完成：设置全文 HTML + 纯文本对比数据。"""
+        full_html = str(payload.get("html", ""))
+        if full_html:
+            self._set_translation_html(full_html)
+        # 存储全文对比数据
+        self._contrast_original = str(payload.get("original_text", ""))
+        self._contrast_translated = str(payload.get("translated_text", ""))
+        self.toolbar.set_translation_state("done", 1.0)
 
     def _set_translation_html(self, bilingual_html: str) -> None:
         from bs4 import BeautifulSoup
