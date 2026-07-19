@@ -1,4 +1,4 @@
-"""Article list with explicit page states."""
+"""Article list with explicit page states and bulk selection support."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from store.entry_store import EntryListItem
+from ui.bulk_action_bar import BulkActionBar
 
 
 class WrappingItemDelegate(QStyledItemDelegate):
@@ -59,6 +60,9 @@ class EntryListWidget(QWidget):
     mark_read_requested = Signal(int, bool)
     star_requested = Signal(int)
     delete_requested = Signal(int)
+    bulk_mark_read_requested = Signal(list)
+    bulk_mark_unread_requested = Signal(list)
+    bulk_delete_requested = Signal(list)
     VALID_STATES = frozenset({"empty", "loading", "content", "error", "offline", "disabled"})
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -75,6 +79,8 @@ class EntryListWidget(QWidget):
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setAccessibleName(self.tr("搜索当前订阅源的文章"))
 
+        self.bulk_bar = BulkActionBar(self)
+
         self.stack = QStackedWidget()
         self.entry_list = WrappingListWidget()
         self.entry_list.setAccessibleName(self.tr("文章列表"))
@@ -83,6 +89,7 @@ class EntryListWidget(QWidget):
         self.entry_list.setUniformItemSizes(False)
         self.entry_list.setItemDelegate(WrappingItemDelegate(self.entry_list))
         self.entry_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.entry_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.stack.addWidget(self.entry_list)
 
         self._state_pages: dict[str, QWidget] = {}
@@ -102,11 +109,17 @@ class EntryListWidget(QWidget):
         layout.addWidget(self.heading)
         layout.addWidget(self.search_edit)
         layout.addWidget(self.loading_banner)
+        layout.addWidget(self.bulk_bar)
         layout.addWidget(self.stack, 1)
         self.entry_list.currentItemChanged.connect(self._on_current_item_changed)
+        self.entry_list.itemSelectionChanged.connect(self._on_selection_changed)
         self.entry_list.customContextMenuRequested.connect(self._show_context_menu)
         self.search_edit.returnPressed.connect(self._emit_search)
         self.search_edit.textChanged.connect(self._on_search_text_changed)
+        self.bulk_bar.mark_read_requested.connect(self._emit_bulk_mark_read)
+        self.bulk_bar.mark_unread_requested.connect(self._emit_bulk_mark_unread)
+        self.bulk_bar.delete_requested.connect(self._emit_bulk_delete)
+        self.bulk_bar.deselect_requested.connect(self._deselect_all)
         self.set_state("disabled")
 
     def _make_state_page(self, title: str, message: str, retry: bool) -> QWidget:
@@ -150,7 +163,8 @@ class EntryListWidget(QWidget):
         self.stack.setCurrentWidget(page)
 
     def set_entries(self, entries: list[EntryListItem]) -> None:
-        selected_id = self.current_entry_id()
+        selected_ids = set(self.selected_entry_ids())
+        current_id = self.current_entry_id()
         with QSignalBlocker(self.entry_list):
             self.entry_list.clear()
             for entry in entries:
@@ -163,13 +177,24 @@ class EntryListWidget(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole + 2, entry.is_starred)
                 item.setToolTip(entry.title)
                 self.entry_list.addItem(item)
-                if entry.id == selected_id:
+                if entry.id in selected_ids:
+                    item.setSelected(True)
+                if entry.id == current_id:
                     self.entry_list.setCurrentItem(item)
         self.set_state("content" if entries else "empty")
+        self._on_selection_changed()
 
     def current_entry_id(self) -> int | None:
         item = self.entry_list.currentItem()
         return int(item.data(Qt.ItemDataRole.UserRole)) if item is not None else None
+
+    def selected_entry_ids(self) -> list[int]:
+        ids: list[int] = []
+        for item in self.entry_list.selectedItems():
+            entry_id = item.data(Qt.ItemDataRole.UserRole)
+            if entry_id is not None:
+                ids.append(int(entry_id))
+        return ids
 
     def _emit_search(self) -> None:
         self.search_requested.emit(self.search_edit.text().strip())
@@ -178,20 +203,37 @@ class EntryListWidget(QWidget):
         if not text:
             self.search_requested.emit("")
 
+    def _on_selection_changed(self) -> None:
+        self.bulk_bar.update_count(len(self.selected_entry_ids()))
+
     def _show_context_menu(self, position) -> None:
         item = self.entry_list.itemAt(position)
         if item is None:
             return
+        if not item.isSelected():
+            self.entry_list.clearSelection()
+            item.setSelected(True)
+            self.entry_list.setCurrentItem(item)
+        selected_ids = self.selected_entry_ids()
         menu = QMenu(self)
-        is_read = bool(item.data(Qt.ItemDataRole.UserRole + 1))
-        is_starred = bool(item.data(Qt.ItemDataRole.UserRole + 2))
-        read_action = menu.addAction(self.tr("标记未读") if is_read else self.tr("标记已读"))
-        star_action = menu.addAction(self.tr("取消收藏") if is_starred else self.tr("收藏"))
-        menu.addSeparator()
-        delete_action = menu.addAction(self.tr("删除"))
-        read_action.triggered.connect(lambda: self._emit_read_for_item(item, not is_read))
-        star_action.triggered.connect(lambda: self._emit_star_for_item(item))
-        delete_action.triggered.connect(lambda: self._emit_delete_for_item(item))
+        if len(selected_ids) >= 2:
+            mark_read_action = menu.addAction(self.tr("将选中文章标记为已读"))
+            mark_unread_action = menu.addAction(self.tr("将选中文章标记为未读"))
+            menu.addSeparator()
+            delete_action = menu.addAction(self.tr("删除选中文章"))
+            mark_read_action.triggered.connect(self._emit_bulk_mark_read)
+            mark_unread_action.triggered.connect(self._emit_bulk_mark_unread)
+            delete_action.triggered.connect(self._emit_bulk_delete)
+        else:
+            is_read = bool(item.data(Qt.ItemDataRole.UserRole + 1))
+            is_starred = bool(item.data(Qt.ItemDataRole.UserRole + 2))
+            read_action = menu.addAction(self.tr("标记未读") if is_read else self.tr("标记已读"))
+            star_action = menu.addAction(self.tr("取消收藏") if is_starred else self.tr("收藏"))
+            menu.addSeparator()
+            delete_action = menu.addAction(self.tr("删除"))
+            read_action.triggered.connect(lambda: self._emit_read_for_item(item, not is_read))
+            star_action.triggered.connect(lambda: self._emit_star_for_item(item))
+            delete_action.triggered.connect(lambda: self._emit_delete_for_item(item))
         menu.exec(self.entry_list.viewport().mapToGlobal(position))
 
     def _emit_read_for_item(self, item: QListWidgetItem, read: bool) -> None:
@@ -202,6 +244,25 @@ class EntryListWidget(QWidget):
 
     def _emit_delete_for_item(self, item: QListWidgetItem) -> None:
         self.delete_requested.emit(int(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _emit_bulk_mark_read(self) -> None:
+        ids = self.selected_entry_ids()
+        if ids:
+            self.bulk_mark_read_requested.emit(ids)
+
+    def _emit_bulk_mark_unread(self) -> None:
+        ids = self.selected_entry_ids()
+        if ids:
+            self.bulk_mark_unread_requested.emit(ids)
+
+    def _emit_bulk_delete(self) -> None:
+        ids = self.selected_entry_ids()
+        if ids:
+            self.bulk_delete_requested.emit(ids)
+
+    def _deselect_all(self) -> None:
+        self.entry_list.clearSelection()
+        self.bulk_bar.update_count(0)
 
     def _on_current_item_changed(
         self,

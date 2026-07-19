@@ -81,6 +81,7 @@ def _build_agent_runtime(
     from core.agent.template_loader import TemplateLoader
     from core.agent.translation import TranslationAgent
     from core.reader.pipeline import ReaderPipeline
+    from core.tags.normalizer import TagNormalizer
     from store.agent_store import AgentStore
 
     runtime = AgentRuntime()

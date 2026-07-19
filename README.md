@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # 🪐 Mercury RSS Reader
 
@@ -186,8 +186,27 @@ Mercury 内置三个 AI Agent：**摘要**、**翻译**、**标签推荐**。AI 
 |----------|----------|------------|
 | **本地 Ollama**（无需 Key） | `http://localhost:11434/v1` | `qwen3`、`llama3.2` |
 | **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini`、`gpt-4o` |
-| **DeepSeek** | `https://api.deepseek.com/v1` | `deepseek-chat` |
 | **任意 OpenAI 兼容 API** | 自定义 | 自定义 |
+
+### DeepSeek / OpenAI SDK 依赖修复（Windows）
+
+如果在 **AI 设置 → 测试连接** 中遇到类似：
+
+```text
+No module named 'openai.types.beta.realtime.conversation_item_input_audio'
+```
+
+通常是当前虚拟环境中的 `openai` SDK 版本混杂或残留损坏。请在已激活 `.venv` 的 PowerShell 中执行：
+
+```powershell
+uv pip uninstall openai
+Remove-Item -Recurse -Force ".venv\Lib\site-packages\openai" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force ".venv\Lib\site-packages\openai-*.dist-info" -ErrorAction SilentlyContinue
+uv pip install "openai==1.55.3"
+python -c "import openai; print(openai.__version__); print(openai.__file__)"
+```
+
+
 
 > 安装 Ollama：[https://ollama.com](https://ollama.com)，随后运行 `ollama pull qwen3`。
 
