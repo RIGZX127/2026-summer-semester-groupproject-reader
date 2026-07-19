@@ -50,7 +50,7 @@ class ReaderView(QWidget):
         )
         self.toolbar = ReaderToolbar(self.theme_manager.theme)
         self.toolbar.set_theme_preference(self.app_theme_controller.preference)
-        self.summary_panel = SummaryPanel(runtime=agent_runtime, parent=self, settings=self._settings)
+        self.summary_panel = SummaryPanel(runtime=agent_runtime, parent=self)
         self.current_mode = "reader"
         self.current_url: str | None = None
         self.last_html = ""
