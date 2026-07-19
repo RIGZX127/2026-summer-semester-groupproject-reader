@@ -21,10 +21,14 @@ from ui.settings.settings_dialog import SettingsDialog
 from ui.sidebar import Sidebar
 
 if TYPE_CHECKING:
+    from core.digest.controller import DigestController
+    from core.feed.opml_controller import OPMLController
     from core.feed.sync import SyncService
     from core.reader.pipeline import ReaderPipeline
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+    from store.note_store import NoteStore
+    from store.tag_store import TagStore
 
 
 class MainWindow(QMainWindow):
@@ -38,6 +42,10 @@ class MainWindow(QMainWindow):
         settings: QSettings | None = None,
         reader_pipeline: ReaderPipeline | None = None,
         agent_runtime: object | None = None,
+        tag_store: TagStore | None = None,
+        note_store: NoteStore | None = None,
+        digest_controller: DigestController | None = None,
+        opml_controller: OPMLController | None = None,
     ) -> None:
         super().__init__()
         self._feed_store = feed_store
@@ -45,6 +53,10 @@ class MainWindow(QMainWindow):
         self._sync_service = sync_service
         self._reader_pipeline = reader_pipeline
         self._agent_runtime = agent_runtime
+        self._tag_store = tag_store
+        self._note_store = note_store
+        self._digest_controller = digest_controller
+        self._opml_controller = opml_controller
         self._settings = settings or QSettings()
         self._feed_request_id: str | None = None
         self._entry_request_id: str | None = None
@@ -224,13 +236,32 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self._settings, self)
         self._settings_dialog = dialog
         dialog.provider_panel.test_requested.connect(self._provider_test_slot)
-        dialog.provider_panel.configuration_saved.connect(
-            lambda: self.statusBar().showMessage(
-                self.tr("LLM 配置已保存，重启应用后用于新任务。"), 6000
-            )
-        )
+        dialog.provider_panel.configuration_saved.connect(self._on_llm_config_saved)
+        dialog.agent_panel.settings_saved.connect(self._on_agent_settings_saved)
         dialog.finished.connect(lambda _result: self._clear_settings_dialog(dialog))
         dialog.show()
+
+    def _on_llm_config_saved(self) -> None:
+        from app.app import reconfigure_agent_runtime
+
+        ok = reconfigure_agent_runtime(self._settings)
+        if ok:
+            self.statusBar().showMessage(
+                self.tr("LLM 配置已生效，AI 功能立即可用。"), 6000
+            )
+        else:
+            self.statusBar().showMessage(
+                self.tr("LLM 配置已保存。请填写完整的服务地址和模型名称后重新保存。"), 8000
+            )
+
+    def _on_agent_settings_saved(self) -> None:
+        """Agent 偏好（语言/详细程度/并发度）变更后同步到运行时。"""
+        from app.app import reconfigure_agent_runtime
+
+        reconfigure_agent_runtime(self._settings)
+        self.statusBar().showMessage(
+            self.tr("Agent 设置已保存，摘要和翻译将使用新的偏好。"), 5000
+        )
 
     def _clear_settings_dialog(self, dialog: SettingsDialog) -> None:
         if self._settings_dialog is dialog:

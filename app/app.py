@@ -18,11 +18,15 @@ from PySide6.QtWidgets import QApplication
 
 from app.state import state
 from app.styles import application_stylesheet
+from core.digest.controller import DigestController
+from core.feed.opml_controller import OPMLController
 from core.feed.sync import SyncService
 from core.reader.pipeline import ReaderPipeline
 from store.db import DatabaseManager
 from store.entry_store import EntryStore
 from store.feed_store import FeedStore
+from store.note_store import NoteStore
+from store.tag_store import TagStore
 from ui.main_window import MainWindow
 
 _logger = logging.getLogger(__name__)
@@ -45,6 +49,12 @@ _DEFAULTS = {
     _TRANSLATION_LANG: "Chinese",
     _TRANSLATION_DEGREE: 3,
 }
+
+
+async def _get_entry_tag_names(tag_store, entry_id: int) -> list[str]:
+    """Async helper：获取指定文章的标签名称列表，供 TagAgent 依赖注入。"""
+    tags = await tag_store.get_entry_tags(entry_id)
+    return [t.tag_name for t in tags]
 
 
 def _default_data_path() -> str:
@@ -76,6 +86,8 @@ def _build_agent_runtime(
     runtime = AgentRuntime()
     pipeline = ReaderPipeline(db)
     agent_store = AgentStore(db)
+    tag_store = TagStore(db)
+    normalizer = TagNormalizer()
 
     # ── 模板加载器 ──────────────────────────────────────────────────
     builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
@@ -129,6 +141,10 @@ def _build_agent_runtime(
     tagging_agent = TagAgent(pipeline, router, templates)
     tagging_agent.language = summary_agent.language
     tagging_agent.register(runtime)
+    tagging_agent.set_tag_dependencies(
+        normalizer=normalizer.normalize,
+        existing_tags_fn=lambda eid: _get_entry_tag_names(tag_store, eid),
+    )
 
     _logger.info(
         "AgentRuntime ready: summary=%s translation=%s tagging=%s llm=%s",
@@ -141,6 +157,95 @@ def _build_agent_runtime(
     state.agent_runtime = runtime
     state.has_llm = has_llm
     return runtime, has_llm
+
+
+def reconfigure_agent_runtime(settings: QSettings) -> bool:
+    """根据当前 QSettings 热重配 Agent 的 LLM router。
+
+    当用户在 AI 工作台中保存 LLM 配置后调用，无需重启应用即可让
+    摘要/翻译/标签 Agent 使用新的 LLM 后端。
+
+    Returns:
+        True 如果 LLM 配置有效且 Agent 已重建，False 如果配置不完整。
+    """
+    if state.db is None:
+        return False
+
+    from core.agent.providers import LLMRouter, ProviderConfig
+    from core.agent.runtime import AgentRuntime
+    from core.agent.summary import SummaryAgent
+    from core.agent.tagging import TagAgent
+    from core.agent.template_loader import TemplateLoader
+    from core.agent.translation import TranslationAgent
+    from core.reader.pipeline import ReaderPipeline
+    from core.tags.normalizer import TagNormalizer
+    from store.agent_store import AgentStore
+    from store.tag_store import TagStore
+
+    base_url = settings.value(_PROVIDER_BASE_URL, "")
+    model = settings.value(_PROVIDER_MODEL, "")
+    api_key = settings.value(_PROVIDER_API_KEY, "")
+
+    if not (base_url and model):
+        state.has_llm = False
+        _logger.warning("LLM reconfigure skipped: base_url or model missing")
+        return False
+
+    # ── 构建新 router ─────────────────────────────────────────────────
+    primary = ProviderConfig(
+        name=model,
+        base_url=base_url,
+        model=model,
+        is_primary=True,
+    )
+    if api_key:
+        primary.set_api_key(api_key)
+    router = LLMRouter(primary=primary)
+
+    # ── 模板加载器 ────────────────────────────────────────────────────
+    builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
+    sandbox_dir = str(pathlib.Path.home() / ".mercury" / "prompts")
+    templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
+
+    pipeline = ReaderPipeline(state.db)
+    agent_store = AgentStore(state.db)
+    tag_store = TagStore(state.db)
+    normalizer = TagNormalizer()
+    runtime = AgentRuntime()
+
+    # ── 重建并重新注册 Agent（同名 agent_type 覆盖旧 handler）───────
+    summary_agent = SummaryAgent(pipeline, router, templates, agent_store)
+    summary_agent.language = str(settings.value(_SUMMARY_LANG, _DEFAULTS[_SUMMARY_LANG]))
+    summary_agent.detail_level = str(settings.value(_SUMMARY_DETAIL, _DEFAULTS[_SUMMARY_DETAIL]))
+    summary_agent.register(runtime)
+
+    translation_agent = TranslationAgent(pipeline, router, templates, agent_store)
+    translation_agent.target_language = str(
+        settings.value(_TRANSLATION_LANG, _DEFAULTS[_TRANSLATION_LANG])
+    )
+    translation_agent.degree = int(
+        settings.value(_TRANSLATION_DEGREE, _DEFAULTS[_TRANSLATION_DEGREE])
+    )
+    translation_agent.register(runtime)
+
+    tagging_agent = TagAgent(pipeline, router, templates)
+    tagging_agent.language = summary_agent.language
+    tagging_agent.register(runtime)
+    tagging_agent.set_tag_dependencies(
+        normalizer=normalizer.normalize,
+        existing_tags_fn=lambda eid: _get_entry_tag_names(tag_store, eid),
+    )
+
+    state.has_llm = True
+    _logger.info(
+        "AgentRuntime reconfigured: summary=%s translation=%s tagging=%s llm=%s@%s",
+        summary_agent,
+        translation_agent,
+        tagging_agent,
+        model,
+        base_url,
+    )
+    return True
 
 
 class MercuryApp:
@@ -167,6 +272,10 @@ class MercuryApp:
             reader_pipeline=ReaderPipeline(state.db),
             agent_runtime=runtime,
             settings=self._settings,
+            tag_store=TagStore(state.db),
+            note_store=NoteStore(state.db),
+            digest_controller=DigestController(state.db),
+            opml_controller=OPMLController(state.db),
         )
 
         app = QApplication.instance()

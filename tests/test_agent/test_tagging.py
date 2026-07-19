@@ -153,8 +153,11 @@ async def test_suggest_uses_existing_tags_fn(agent, mock_pipeline, mock_router, 
 
     existing_tags = ["existing", "ai"]
 
+    async def get_existing_tags(entry_id: int) -> list[str]:
+        return existing_tags
+
     agent.set_tag_dependencies(
-        existing_tags_fn=lambda: existing_tags,
+        existing_tags_fn=get_existing_tags,
     )
     result = await agent.suggest(entry_id=1, run_id="test-run-2")
     assert len(result["existing_tags"]) == 2

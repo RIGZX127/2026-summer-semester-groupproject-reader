@@ -19,7 +19,7 @@ from core.agent.providers import LLMRouter
 from core.agent.template_loader import TemplateLoader
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from core.agent.runtime import AgentRuntime
     from core.reader.pipeline import ReaderPipeline
@@ -63,7 +63,7 @@ class TagAgent:
 
         # 可选依赖（G4.1 后注入）
         self._normalizer: Callable[[str], str] | None = None
-        self._existing_tags_fn: Callable[[], list[str]] | None = None
+        self._existing_tags_fn: Callable[[int], Awaitable[list[str]]] | None = None
 
         # 可配置参数
         self.max_tags: int = 5  # 每次建议的最大标签数
@@ -74,13 +74,14 @@ class TagAgent:
     def set_tag_dependencies(
         self,
         normalizer: Callable[[str], str] | None = None,
-        existing_tags_fn: Callable[[], list[str]] | None = None,
+        existing_tags_fn: Callable[[int], Awaitable[list[str]]] | None = None,
     ) -> None:
         """注入标签系统的可选依赖（G4.1 交付后由 A 调用）。
 
         Args:
             normalizer: 标签规范化函数，签名 (raw_tag: str) -> normalized: str。
-            existing_tags_fn: 获取当前文章已有标签的函数。
+            existing_tags_fn: 异步函数，根据 entry_id 获取已有标签列表，
+                             签名 async (entry_id: int) -> list[str]。
         """
         if normalizer is not None:
             self._normalizer = normalizer
@@ -135,7 +136,7 @@ class TagAgent:
         existing: list[str] = []
         if self._existing_tags_fn is not None:
             try:
-                existing = self._existing_tags_fn()
+                existing = await self._existing_tags_fn(entry_id)
             except Exception:
                 pass  # 标签获取失败不影响核心流程
 
