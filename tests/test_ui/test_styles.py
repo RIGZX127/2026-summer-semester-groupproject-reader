@@ -16,6 +16,7 @@ def test_application_stylesheet_contains_accessible_states() -> None:
     assert "QWidget#Sidebar" in qss
     assert "QListWidget::item:selected" in qss
     assert "QPushButton:focus" in qss
+    assert "QToolTip" in qss
     assert 'QLineEdit[validationError="true"]' in qss
 
 
@@ -25,3 +26,7 @@ def test_application_stylesheet_has_reader_toolbar_control_states() -> None:
     assert 'QComboBox[readerControl="true"]' in qss
     assert 'QSpinBox[readerControl="true"]' in qss
     assert "QPushButton:checked" in qss
+    assert "QPushButton#ReaderPopupButton" in qss
+    assert "min-width: 28px; max-width: 28px" in qss
+    assert "padding: 0; background" in qss
+    assert "QWidget#SummaryHeaderBar" in qss

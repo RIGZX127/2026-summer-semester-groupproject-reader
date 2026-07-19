@@ -35,5 +35,8 @@ def test_summary_panel_uses_resizable_vertical_splitter(tmp_path, qtbot) -> None
     assert view.reader_splitter.widget(0) is view.stack
     assert view.reader_splitter.widget(1) is view.summary_panel
     view.reader_splitter.setSizes([500, 180])
+    view._on_reader_splitter_moved(0, 0)
+    assert view.summary_panel.is_collapsed is False
+    assert view.summary_panel._body.isHidden() is False
     view.save_ui_state()
     assert settings.value("ui/reader/vertical_splitter") is not None

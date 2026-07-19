@@ -5,17 +5,29 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QLineEdit,
     QListView,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from store.feed_store import FeedRow
-from ui.icons import sidebar_icon
+from ui.icons import (
+    COMPACT_CONTROL_SIZE,
+    COMPACT_ICON_SIZE,
+    add_icon,
+    agent_icon,
+    feed_icon,
+    sidebar_icon,
+    sync_icon,
+)
+from ui.tooltips import enable_immediate_tooltip
 
 _TITLE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 _COUNT_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -28,6 +40,9 @@ class Sidebar(QWidget):
     feed_selected = Signal(int)
     add_feed_requested = Signal()
     sync_requested = Signal(int)
+    sync_all_requested = Signal()
+    feed_rename_requested = Signal(int, str)
+    feed_delete_requested = Signal(int)
     ai_settings_requested = Signal()
     collapse_requested = Signal()
 
@@ -42,8 +57,8 @@ class Sidebar(QWidget):
         self.collapse_button = QPushButton()
         self.collapse_button.setObjectName("SidebarCollapseButton")
         self.collapse_button.setIcon(sidebar_icon())
-        self.collapse_button.setIconSize(QSize(18, 18))
-        self.collapse_button.setFixedSize(32, 32)
+        self.collapse_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.collapse_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
         self.collapse_button.setAccessibleName(self.tr("隐藏订阅源栏"))
         self.collapse_button.setToolTip(self.tr("隐藏订阅源栏"))
         header = QHBoxLayout()
@@ -51,17 +66,55 @@ class Sidebar(QWidget):
         header.addWidget(title)
         header.addStretch()
         header.addWidget(self.collapse_button)
-        self.add_button = QPushButton(self.tr("＋ 添加订阅"))
+        self.add_button = QPushButton()
+        self.add_button.setObjectName("SidebarActionButton")
+        self.add_button.setIcon(add_icon())
+        self.add_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.add_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
         self.add_button.setAccessibleName(self.tr("添加订阅源"))
         self.add_button.setToolTip(self.tr("添加新的 RSS、Atom 或 JSON Feed"))
-        self.sync_button = QPushButton(self.tr("同步当前订阅"))
-        self.sync_button.setAccessibleName(self.tr("同步当前订阅"))
-        self.sync_button.setToolTip(self.tr("获取当前订阅源的最新文章"))
+        self.sync_button = QPushButton()
+        self.sync_button.setObjectName("SidebarActionButton")
+        self.sync_button.setIcon(sync_icon())
+        self.sync_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.sync_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
+        self.sync_button.setAccessibleName(self.tr("同步订阅"))
+        self.sync_button.setToolTip(self.tr("同步当前订阅或全部订阅"))
         self.sync_button.setEnabled(False)
-        self.add_button.setMinimumHeight(36)
-        self.add_button.setProperty("buttonRole", "primary")
-        self.sync_button.setMinimumHeight(36)
-        self.sync_button.setProperty("buttonRole", "secondary")
+
+        self.sync_menu = QMenu(self)
+        self.sync_current_action = self.sync_menu.addAction(self.tr("同步当前订阅"))
+        self.sync_all_action = self.sync_menu.addAction(self.tr("同步全部订阅"))
+        self.sync_current_action.setEnabled(False)
+        self.sync_current_action.triggered.connect(lambda _checked=False: self._request_sync())
+        self.sync_all_action.triggered.connect(
+            lambda _checked=False: self.sync_all_requested.emit()
+        )
+
+        self.ai_button = QPushButton()
+        self.ai_button.setObjectName("SidebarActionButton")
+        self.ai_button.setIcon(agent_icon())
+        self.ai_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.ai_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
+        self.ai_button.setAccessibleName(self.tr("AI 设置"))
+        self.ai_button.setToolTip(self.tr("AI 设置"))
+        self.ai_button.setProperty("iconRole", "agent")
+
+        for button in (
+            self.collapse_button,
+            self.add_button,
+            self.sync_button,
+            self.ai_button,
+        ):
+            enable_immediate_tooltip(button)
+
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 0, 0, 0)
+        actions.setSpacing(6)
+        actions.addWidget(self.add_button)
+        actions.addWidget(self.sync_button)
+        actions.addWidget(self.ai_button)
+        actions.addStretch()
 
         section = QLabel(self.tr("订阅源"))
         section.setObjectName("SidebarSection")
@@ -71,42 +124,35 @@ class Sidebar(QWidget):
         self.feed_list.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.feed_list.setResizeMode(QListView.ResizeMode.Adjust)
         self.feed_list.setUniformItemSizes(False)
+        self.feed_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
-        self.ai_card = QWidget()
-        self.ai_card.setObjectName("AIWorkspaceCard")
-        ai_title = QLabel(self.tr("AI 工作台"))
-        ai_title.setObjectName("AIWorkspaceTitle")
-        self.ai_description = QLabel(self.tr("配置模型，使用文章摘要与全文翻译"))
-        self.ai_description.setObjectName("AIWorkspaceDescription")
-        self.ai_description.setWordWrap(True)
-        self.ai_button = QPushButton(self.tr("打开 AI 工作台"))
-        self.ai_button.setObjectName("AIWorkspaceButton")
-        self.ai_button.setAccessibleName(self.tr("打开 AI 提供者和 Agent 设置"))
-        self.ai_button.setToolTip(self.tr("配置模型、自动摘要和翻译选项"))
-        ai_layout = QVBoxLayout(self.ai_card)
-        ai_layout.setContentsMargins(12, 12, 12, 12)
-        ai_layout.setSpacing(6)
-        ai_layout.addWidget(ai_title)
-        ai_layout.addWidget(self.ai_description)
-        ai_layout.addWidget(self.ai_button)
+        self.feed_menu = QMenu(self)
+        self.feed_rename_action = self.feed_menu.addAction(self.tr("重命名订阅"))
+        self.feed_delete_action = self.feed_menu.addAction(self.tr("删除订阅"))
+        self.feed_rename_action.triggered.connect(
+            lambda _checked=False: self._rename_current_feed()
+        )
+        self.feed_delete_action.triggered.connect(
+            lambda _checked=False: self._request_delete_current_feed()
+        )
+
+        # Kept as a compatibility hook for older UI tests and integrations.
+        self.ai_card = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 22, 18, 18)
+        layout.setContentsMargins(18, 6, 18, 18)
         layout.setSpacing(12)
         layout.addLayout(header)
-        layout.addSpacing(8)
-        layout.addWidget(self.add_button)
-        layout.addSpacing(8)
+        layout.addLayout(actions)
         layout.addWidget(section)
         layout.addWidget(self.feed_list, 1)
-        layout.addWidget(self.ai_card)
-        layout.addWidget(self.sync_button)
 
         self.add_button.clicked.connect(self.add_feed_requested)
-        self.sync_button.clicked.connect(self._request_sync)
+        self.sync_button.clicked.connect(self._show_sync_menu)
         self.ai_button.clicked.connect(self.ai_settings_requested)
         self.collapse_button.clicked.connect(self.collapse_requested)
         self.feed_list.currentItemChanged.connect(self._on_current_item_changed)
+        self.feed_list.customContextMenuRequested.connect(self._show_feed_menu)
 
     def set_feeds(self, rows: list[tuple[FeedRow, int]]) -> None:
         selected_id = self.current_feed_id()
@@ -119,12 +165,15 @@ class Sidebar(QWidget):
             item.setData(_COUNT_ROLE, unread)
             item.setData(_ERROR_ROLE, None)
             item.setToolTip(row.title or row.url)
+            item.setIcon(feed_icon())
             self.feed_list.addItem(item)
             self._refresh_item(item)
             if row.id == selected_id:
                 restore_row = self.feed_list.count() - 1
         if restore_row >= 0:
             self.feed_list.setCurrentRow(restore_row)
+        self.sync_button.setEnabled(bool(rows))
+        self.sync_current_action.setEnabled(self.current_feed_id() is not None)
 
     def current_feed_id(self) -> int | None:
         item = self.feed_list.currentItem()
@@ -163,7 +212,7 @@ class Sidebar(QWidget):
         _previous: QListWidgetItem | None,
     ) -> None:
         feed_id = current.data(Qt.ItemDataRole.UserRole) if current else None
-        self.sync_button.setEnabled(feed_id is not None)
+        self.sync_current_action.setEnabled(feed_id is not None)
         if feed_id is not None:
             self.feed_selected.emit(int(feed_id))
 
@@ -171,3 +220,36 @@ class Sidebar(QWidget):
         feed_id = self.current_feed_id()
         if feed_id is not None:
             self.sync_requested.emit(feed_id)
+
+    def _show_sync_menu(self) -> None:
+        self.sync_current_action.setEnabled(self.current_feed_id() is not None)
+        self.sync_menu.popup(self.sync_button.mapToGlobal(self.sync_button.rect().bottomLeft()))
+
+    def _show_feed_menu(self, position) -> None:
+        item = self.feed_list.itemAt(position)
+        if item is None:
+            return
+        self.feed_list.setCurrentItem(item)
+        self.feed_menu.popup(self.feed_list.viewport().mapToGlobal(position))
+
+    def _rename_current_feed(self) -> None:
+        item = self.feed_list.currentItem()
+        if item is None:
+            return
+        feed_id = int(item.data(Qt.ItemDataRole.UserRole))
+        current_title = str(item.data(_TITLE_ROLE))
+        title, accepted = QInputDialog.getText(
+            self,
+            self.tr("重命名订阅"),
+            self.tr("订阅名称"),
+            QLineEdit.EchoMode.Normal,
+            current_title,
+        )
+        title = title.strip()
+        if accepted and title and title != current_title:
+            self.feed_rename_requested.emit(feed_id, title)
+
+    def _request_delete_current_feed(self) -> None:
+        feed_id = self.current_feed_id()
+        if feed_id is not None:
+            self.feed_delete_requested.emit(feed_id)

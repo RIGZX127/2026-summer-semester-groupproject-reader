@@ -24,15 +24,19 @@ def test_reader_css_contains_responsive_overflow_rules(tmp_path) -> None:
     assert "overflow-wrap: anywhere" in css
 
 
-def test_reader_width_fills_pane_without_breakpoint_shrinking(tmp_path) -> None:
+def test_reader_width_adapts_to_wide_and_focus_panes(tmp_path) -> None:
     settings = QSettings(str(tmp_path / "reader.ini"), QSettings.Format.IniFormat)
     manager = ThemeManager(settings)
 
     assert "width: 100%" in manager.reader_css()
     assert "max-width: none" in manager.reader_css()
     assert "clamp(18px, 6vw, 72px)" in manager.reader_css()
-    assert "@media (max-width: 700px)" not in manager.reader_css()
+    assert "--reader-content-width: clamp(760px, 78vw, 1240px)" in manager.reader_css()
+    assert "body > *" in manager.reader_css()
+    assert "max-width: min(100%, var(--reader-content-width))" in manager.reader_css()
+    assert "p > img:only-child" in manager.reader_css()
+    assert "width: 100%" in manager.reader_css()
 
     manager.set_content_width(920)
-    assert "width: 100%" in manager.reader_css()
+    assert "--reader-content-width: clamp(920px, 88vw, 1440px)" in manager.reader_css()
     assert "clamp(16px, 4vw, 48px)" in manager.reader_css()
