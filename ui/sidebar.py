@@ -18,12 +18,15 @@ from PySide6.QtWidgets import (
 )
 
 from store.feed_store import FeedRow
+from ui.collections_widget import CollectionsWidget
 from ui.icons import (
     COMPACT_CONTROL_SIZE,
     COMPACT_ICON_SIZE,
     add_icon,
     agent_icon,
+    export_icon,
     feed_icon,
+    import_icon,
     sidebar_icon,
     sync_icon,
 )
@@ -44,6 +47,8 @@ class Sidebar(QWidget):
     feed_rename_requested = Signal(int, str)
     feed_delete_requested = Signal(int)
     ai_settings_requested = Signal()
+    import_opml_requested = Signal()
+    export_opml_requested = Signal()
     collapse_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -100,11 +105,37 @@ class Sidebar(QWidget):
         self.ai_button.setToolTip(self.tr("AI 设置"))
         self.ai_button.setProperty("iconRole", "agent")
 
+        self.import_opml_button = QPushButton()
+        self.import_opml_button.setObjectName("SidebarActionButton")
+        self.import_opml_button.setIcon(import_icon())
+        self.import_opml_button.setIconSize(
+            QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE)
+        )
+        self.import_opml_button.setFixedSize(
+            COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE
+        )
+        self.import_opml_button.setAccessibleName(self.tr("导入 OPML"))
+        self.import_opml_button.setToolTip(self.tr("导入 OPML"))
+
+        self.export_opml_button = QPushButton()
+        self.export_opml_button.setObjectName("SidebarActionButton")
+        self.export_opml_button.setIcon(export_icon())
+        self.export_opml_button.setIconSize(
+            QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE)
+        )
+        self.export_opml_button.setFixedSize(
+            COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE
+        )
+        self.export_opml_button.setAccessibleName(self.tr("导出 OPML"))
+        self.export_opml_button.setToolTip(self.tr("导出 OPML"))
+
         for button in (
             self.collapse_button,
             self.add_button,
             self.sync_button,
             self.ai_button,
+            self.import_opml_button,
+            self.export_opml_button,
         ):
             enable_immediate_tooltip(button)
 
@@ -114,6 +145,8 @@ class Sidebar(QWidget):
         actions.addWidget(self.add_button)
         actions.addWidget(self.sync_button)
         actions.addWidget(self.ai_button)
+        actions.addWidget(self.import_opml_button)
+        actions.addWidget(self.export_opml_button)
         actions.addStretch()
 
         section = QLabel(self.tr("订阅源"))
@@ -146,10 +179,14 @@ class Sidebar(QWidget):
         layout.addLayout(actions)
         layout.addWidget(section)
         layout.addWidget(self.feed_list, 1)
+        self.collections = CollectionsWidget(self)
+        layout.addWidget(self.collections, 1)
 
         self.add_button.clicked.connect(self.add_feed_requested)
         self.sync_button.clicked.connect(self._show_sync_menu)
         self.ai_button.clicked.connect(self.ai_settings_requested)
+        self.import_opml_button.clicked.connect(self.import_opml_requested)
+        self.export_opml_button.clicked.connect(self.export_opml_requested)
         self.collapse_button.clicked.connect(self.collapse_requested)
         self.feed_list.currentItemChanged.connect(self._on_current_item_changed)
         self.feed_list.customContextMenuRequested.connect(self._show_feed_menu)

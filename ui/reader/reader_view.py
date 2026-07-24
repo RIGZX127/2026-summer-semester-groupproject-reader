@@ -9,9 +9,18 @@ from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QLabel, QPushButton, QSplitter, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QLabel,
+    QPushButton,
+    QSplitter,
+    QStackedWidget,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from store.entry_store import EntryRow
+from ui.reader.note_editor import NoteEditor
 from ui.reader.reader_toolbar import ReaderToolbar
 from ui.reader.summary_panel import SummaryPanel
 from ui.reader.theme_manager import ThemeManager
@@ -50,7 +59,17 @@ class ReaderView(QWidget):
         )
         self.toolbar = ReaderToolbar(self.theme_manager.theme)
         self.toolbar.set_theme_preference(self.app_theme_controller.preference)
+        self.tags_label = QLabel()
+        self.tags_label.setObjectName("ReaderTags")
+        self.tags_label.setAccessibleName(self.tr("文章标签"))
+        self.tags_label.setWordWrap(True)
+        self.tags_label.hide()
         self.summary_panel = SummaryPanel(runtime=agent_runtime, parent=self)
+        self.note_editor = NoteEditor(self)
+        self.bottom_tabs = QTabWidget(self)
+        self.bottom_tabs.setObjectName("ReaderBottomTabs")
+        self.bottom_tabs.addTab(self.summary_panel, self.tr("AI 摘要"))
+        self.bottom_tabs.addTab(self.note_editor, self.tr("笔记"))
         self.current_mode = "reader"
         self.current_url: str | None = None
         self.last_html = ""
@@ -115,11 +134,12 @@ class ReaderView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.toolbar)
+        layout.addWidget(self.tags_label)
         self.reader_splitter = QSplitter(Qt.Orientation.Vertical)
         self.reader_splitter.setObjectName("ReaderSummarySplitter")
         self.reader_splitter.setChildrenCollapsible(False)
         self.reader_splitter.addWidget(self.stack)
-        self.reader_splitter.addWidget(self.summary_panel)
+        self.reader_splitter.addWidget(self.bottom_tabs)
         self.reader_splitter.setStretchFactor(0, 1)
         self.reader_splitter.setStretchFactor(1, 0)
         self.reader_splitter.setOpaqueResize(True)
@@ -170,7 +190,13 @@ class ReaderView(QWidget):
     def show_empty(self) -> None:
         self._auto_summary_timer.stop()
         self.toolbar.set_article_available(False)
+        self.set_tags([])
         self.stack.setCurrentWidget(self.empty_page)
+
+    def set_tags(self, tags: list[str]) -> None:
+        """Display the current entry tags without owning tag persistence."""
+        self.tags_label.setText("  ·  ".join(tags))
+        self.tags_label.setVisible(bool(tags))
 
     def show_loading(self) -> None:
         self._auto_summary_timer.stop()

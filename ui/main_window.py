@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtGui import QCloseEvent, QGuiApplication
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QInputDialog,
+    QMainWindow,
+    QMessageBox,
+    QSplitter,
+)
 from qasync import asyncSlot
 
 from app.state import state
 from core.reader.pipeline import ReaderFetchError
+from store.entry_store import EntryListItem
 from store.feed_store import DuplicateFeedError
 from ui.dialogs.add_feed_dialog import AddFeedDialog
 from ui.entry_list import EntryListWidget
@@ -25,9 +33,9 @@ if TYPE_CHECKING:
     from core.feed.opml_controller import OPMLController
     from core.feed.sync import SyncService
     from core.reader.pipeline import ReaderPipeline
+    from store.collection_store import CollectionStore
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
-    from store.collection_store import CollectionStore
     from store.note_store import NoteStore
     from store.tag_store import TagStore
 
@@ -69,6 +77,8 @@ class MainWindow(QMainWindow):
         self._search_query = ""
         self._search_scope = "feed"
         self._sidebar_visible_before_focus = True
+        self._active_tagging_run_id: str | None = None
+        self._tagging_entry_id: int | None = None
 
         self.setWindowTitle(self.tr("Mercury RSS Reader"))
         self.setMinimumSize(1024, 640)
@@ -87,27 +97,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.splitter)
         self.statusBar().showMessage(self.tr("准备就绪"))
 
-        self.ai_settings_action = QAction(self.tr("AI 设置…"), self)
-        self.ai_settings_action.setShortcut("Ctrl+,")
-        self.ai_settings_action.setToolTip(self.tr("配置 LLM、摘要和翻译"))
-        self.ai_settings_action.triggered.connect(self.open_settings_dialog)
-        self.ai_menu = self.menuBar().addMenu(self.tr("AI"))
-        self.ai_menu.addAction(self.ai_settings_action)
-
-        self.import_opml_action = QAction(self.tr("导入 OPML…"), self)
-        self.import_opml_action.setShortcut("Ctrl+Shift+I")
-        self.import_opml_action.setToolTip(self.tr("从 OPML 文件批量导入订阅源"))
-        self.import_opml_action.triggered.connect(self._import_opml_slot)
-
-        self.export_opml_action = QAction(self.tr("导出 OPML…"), self)
-        self.export_opml_action.setShortcut("Ctrl+Shift+E")
-        self.export_opml_action.setToolTip(self.tr("将全部订阅源导出为 OPML 文件"))
-        self.export_opml_action.triggered.connect(self._export_opml_slot)
-
-        self.feed_menu = self.menuBar().addMenu(self.tr("订阅"))
-        self.feed_menu.addAction(self.import_opml_action)
-        self.feed_menu.addAction(self.export_opml_action)
-
         self.sidebar.add_feed_requested.connect(self.open_add_feed_dialog)
         self.sidebar.feed_selected.connect(self._select_feed_slot)
         self.sidebar.sync_requested.connect(self._sync_feed_slot)
@@ -115,6 +104,8 @@ class MainWindow(QMainWindow):
         self.sidebar.feed_rename_requested.connect(self._rename_feed_slot)
         self.sidebar.feed_delete_requested.connect(self._delete_feed_slot)
         self.sidebar.ai_settings_requested.connect(self.open_settings_dialog)
+        self.sidebar.import_opml_requested.connect(self._import_opml_slot)
+        self.sidebar.export_opml_requested.connect(self._export_opml_slot)
         self.sidebar.collapse_requested.connect(self._hide_sidebar)
         self.entry_list.entry_selected.connect(self._select_entry_slot)
         self.entry_list.retry_requested.connect(self._retry_entries)
@@ -123,10 +114,40 @@ class MainWindow(QMainWindow):
         self.entry_list.mark_read_requested.connect(self._mark_read_slot)
         self.entry_list.star_requested.connect(self._toggle_star_slot)
         self.entry_list.delete_requested.connect(self._delete_entry_slot)
+        self.entry_list.add_to_collection_requested.connect(
+            self._add_to_collection_slot
+        )
+        self.entry_list.export_markdown_requested.connect(
+            self._export_markdown_slot
+        )
+        self.entry_list.manage_tags_requested.connect(self._manage_tags_slot)
+        self.entry_list.generate_tags_requested.connect(self._generate_tags_slot)
         self.entry_list.batch_mark_read_requested.connect(self._batch_mark_read_slot)
         self.entry_list.batch_star_requested.connect(self._batch_toggle_star_slot)
         self.entry_list.batch_delete_requested.connect(self._batch_delete_slot)
+        self.entry_list.batch_export_digest_requested.connect(
+            self._batch_export_digest_slot
+        )
         self.reader_view.retry_requested.connect(self._retry_reader)
+        self.reader_view.note_editor.save_requested.connect(self._save_note_slot)
+        self.sidebar.collections.collection_selected.connect(
+            self._select_collection_slot
+        )
+        self.sidebar.collections.create_requested.connect(
+            self._create_collection_slot
+        )
+        self.sidebar.collections.rename_requested.connect(
+            self._rename_collection_slot
+        )
+        self.sidebar.collections.delete_requested.connect(
+            self._delete_collection_slot
+        )
+        self.sidebar.collections.setVisible(self._collection_store is not None)
+        self.reader_view.note_editor.setEnabled(self._note_store is not None)
+        if self._agent_runtime is not None:
+            self._agent_runtime.signals.state_changed.connect(
+                self._on_tagging_state_changed
+            )
         self.reader_view.toolbar.sidebar_restore_requested.connect(self._show_sidebar)
         self.reader_view.toolbar.focus_mode_changed.connect(self._set_focus_mode)
         self._sync_service.signals.sync_started.connect(self._on_sync_started)
@@ -139,7 +160,10 @@ class MainWindow(QMainWindow):
 
     def _schedule_initial_load(self) -> None:
         try:
-            asyncio.get_running_loop().create_task(self.load_feeds())
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.load_feeds())
+            if self._collection_store is not None:
+                loop.create_task(self.load_collections())
         except RuntimeError:
             pass
 
@@ -192,6 +216,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("订阅添加成功"), 4000)
 
     async def select_feed(self, feed_id: int) -> None:
+        self.reader_view.note_editor.flush()
+        self.reader_view.note_editor.set_entry(None, "")
         state.selected_feed_id = feed_id
         self._selected_entry_id = None
         self._search_query = ""
@@ -213,6 +239,8 @@ class MainWindow(QMainWindow):
         self.reader_view.show_empty()
 
     async def select_entry(self, entry_id: int) -> None:
+        if self._selected_entry_id != entry_id:
+            self.reader_view.note_editor.flush()
         request_id = str(uuid.uuid4())
         self._entry_request_id = request_id
         self.reader_view.show_loading()
@@ -226,8 +254,11 @@ class MainWindow(QMainWindow):
         if self._entry_request_id != request_id:
             return
         if entry is None:
+            self.reader_view.note_editor.set_entry(None, "")
             self.reader_view.show_error(self.tr("文章不存在或已被删除。"))
             return
+        await self.load_entry_tags(entry_id, request_id)
+        await self.load_note(entry_id, request_id)
         try:
             if not entry.is_read:
                 await self._entry_store.mark_read(entry_id)
@@ -371,12 +402,338 @@ class MainWindow(QMainWindow):
     async def toggle_entry_star(self, entry_id: int) -> None:
         try:
             starred = await self._entry_store.toggle_star(entry_id)
+            if self._collection_store is not None:
+                if starred:
+                    await self._collection_store.quick_star(entry_id)
+                else:
+                    await self._collection_store.quick_unstar(entry_id)
+                await self.load_collections()
             await self.refresh_entries()
         except Exception as exc:  # noqa: BLE001
             self.statusBar().showMessage(self.tr("更新收藏失败：{0}").format(str(exc)), 6000)
             return
         message = self.tr("已收藏文章") if starred else self.tr("已取消收藏")
         self.statusBar().showMessage(message, 4000)
+
+    async def load_collections(self) -> None:
+        if self._collection_store is None:
+            return
+        try:
+            rows = await self._collection_store.list_all()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("收藏夹加载失败：{0}").format(str(exc)), 6000
+            )
+            return
+        self.sidebar.collections.set_collections(rows)
+
+    async def select_collection(self, collection_id: int) -> None:
+        if self._collection_store is None:
+            return
+        state.selected_feed_id = None
+        self._selected_entry_id = None
+        self.reader_view.note_editor.flush()
+        self.reader_view.note_editor.set_entry(None, "")
+        self.reader_view.show_empty()
+        self.entry_list.set_state("loading")
+        try:
+            entry_ids = await self._collection_store.get_entries(collection_id)
+            entry_rows = await asyncio.gather(
+                *(self._entry_store.get(entry_id) for entry_id in entry_ids)
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.entry_list.set_state(
+                "error", self.tr("收藏夹文章加载失败：{0}").format(str(exc))
+            )
+            return
+        entries = [
+            EntryListItem(
+                row.id,
+                row.feed_id,
+                row.title,
+                (row.summary or "")[:120],
+                row.author,
+                row.published_at,
+                row.is_read,
+                row.is_starred,
+            )
+            for row in entry_rows
+            if row is not None
+        ]
+        self.entry_list.heading.setText(self.tr("收藏夹文章"))
+        self.entry_list.set_entries(entries)
+
+    async def create_collection(self, name: str) -> None:
+        if self._collection_store is None:
+            return
+        try:
+            await self._collection_store.create(name)
+            await self.load_collections()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("新建收藏夹失败：{0}").format(str(exc)), 6000
+            )
+
+    async def rename_collection(self, collection_id: int, name: str) -> None:
+        if self._collection_store is None:
+            return
+        try:
+            await self._collection_store.update(collection_id, name=name)
+            await self.load_collections()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("重命名收藏夹失败：{0}").format(str(exc)), 6000
+            )
+
+    async def delete_collection(self, collection_id: int) -> None:
+        if self._collection_store is None:
+            return
+        result = QMessageBox.question(
+            self,
+            self.tr("删除收藏夹"),
+            self.tr("确定删除这个收藏夹吗？文章本身不会被删除。"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            await self._collection_store.delete(collection_id)
+            await self.load_collections()
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("删除收藏夹失败：{0}").format(str(exc)), 6000
+            )
+
+    def _choose_collection(self, rows: list) -> int | None:
+        names = [row.name for row in rows]
+        name, accepted = QInputDialog.getItem(
+            self,
+            self.tr("添加到收藏夹"),
+            self.tr("选择收藏夹"),
+            names,
+            0,
+            False,
+        )
+        if not accepted:
+            return None
+        return next((row.id for row in rows if row.name == name), None)
+
+    async def add_entry_to_collection(self, entry_id: int) -> None:
+        if self._collection_store is None:
+            return
+        try:
+            rows = await self._collection_store.list_all()
+            if not rows:
+                created = await self._collection_store.create(
+                    self.tr("默认收藏夹"), is_default=True
+                )
+                rows = [created]
+            collection_id = self._choose_collection(rows)
+            if collection_id is None:
+                return
+            await self._collection_store.add_entry(collection_id, entry_id)
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("添加到收藏夹失败：{0}").format(str(exc)), 6000
+            )
+            return
+        self.statusBar().showMessage(self.tr("已添加到收藏夹"), 4000)
+
+    async def load_note(self, entry_id: int, request_id: str | None = None) -> None:
+        if self._note_store is None:
+            self.reader_view.note_editor.set_entry(None, "")
+            return
+        try:
+            note = await self._note_store.get(entry_id)
+        except Exception:  # noqa: BLE001
+            if request_id is None or request_id == self._entry_request_id:
+                self.reader_view.note_editor.set_entry(entry_id, "")
+                self.reader_view.note_editor.set_save_state("error")
+            return
+        if request_id is not None and request_id != self._entry_request_id:
+            return
+        self.reader_view.note_editor.set_entry(entry_id, note.body if note else "")
+
+    async def save_note(self, entry_id: int, body: str) -> None:
+        if self._note_store is None:
+            return
+        try:
+            await self._note_store.save(entry_id, body)
+        except Exception:  # noqa: BLE001
+            if self.reader_view.note_editor.entry_id == entry_id:
+                self.reader_view.note_editor.set_save_state("error")
+            return
+        if self.reader_view.note_editor.entry_id == entry_id:
+            self.reader_view.note_editor.set_save_state("saved")
+
+    async def export_entry_markdown(self, entry_id: int, dest_dir: str) -> None:
+        if self._digest_controller is None:
+            self.statusBar().showMessage(self.tr("导出功能当前不可用"), 5000)
+            return
+        try:
+            result = await self._digest_controller.export_single(entry_id, dest_dir)
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("导出失败：{0}").format(str(exc)), 6000
+            )
+            return
+        if result.ok:
+            self.statusBar().showMessage(
+                self.tr("Markdown 已导出：{0}").format(str(result.path)), 6000
+            )
+        else:
+            self.statusBar().showMessage(
+                self.tr("导出失败：{0}").format(result.error or self.tr("未知错误")),
+                6000,
+            )
+
+    async def export_entries_digest(
+        self, entry_ids: list[int], dest_dir: str
+    ) -> None:
+        if not entry_ids or self._digest_controller is None:
+            return
+        try:
+            result = await self._digest_controller.export_multi(entry_ids, dest_dir)
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("Digest 导出失败：{0}").format(str(exc)), 6000
+            )
+            return
+        if result.ok:
+            self.entry_list.set_batch_mode(False)
+            self.statusBar().showMessage(
+                self.tr("Digest 已导出：{0}").format(str(result.path)), 6000
+            )
+        else:
+            self.statusBar().showMessage(
+                self.tr("Digest 导出失败：{0}").format(
+                    result.error or self.tr("未知错误")
+                ),
+                6000,
+            )
+
+    async def load_entry_tags(
+        self, entry_id: int, request_id: str | None = None
+    ) -> list[str]:
+        if self._tag_store is None:
+            self.reader_view.set_tags([])
+            return []
+        try:
+            rows = await self._tag_store.get_entry_tags(entry_id)
+        except Exception as exc:  # noqa: BLE001
+            if request_id is None or request_id == self._entry_request_id:
+                self.statusBar().showMessage(
+                    self.tr("标签加载失败：{0}").format(str(exc)), 5000
+                )
+            return []
+        if request_id is not None and request_id != self._entry_request_id:
+            return []
+        names = [row.tag_name for row in rows]
+        if self._selected_entry_id in {None, entry_id}:
+            self.reader_view.set_tags(names)
+        return names
+
+    def _prompt_tag_names(self, current: list[str]) -> list[str] | None:
+        value, accepted = QInputDialog.getText(
+            self,
+            self.tr("管理标签"),
+            self.tr("输入标签，用逗号分隔"),
+            text=", ".join(current),
+        )
+        if not accepted:
+            return None
+        names: list[str] = []
+        seen: set[str] = set()
+        for raw_name in value.replace("，", ",").split(","):
+            name = raw_name.strip()
+            normalized = name.casefold()
+            if name and normalized not in seen:
+                names.append(name)
+                seen.add(normalized)
+        return names
+
+    async def manage_entry_tags(
+        self, entry_id: int, suggested: list[str] | None = None
+    ) -> None:
+        if self._tag_store is None:
+            return
+        current = await self.load_entry_tags(entry_id)
+        names = suggested if suggested is not None else self._prompt_tag_names(current)
+        if names is None:
+            return
+        try:
+            tags = [await self._tag_store.create(name) for name in names]
+            await self._tag_store.set_entry_tags(entry_id, [tag.id for tag in tags])
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("标签保存失败：{0}").format(str(exc)), 6000
+            )
+            return
+        if self._selected_entry_id in {None, entry_id}:
+            self.reader_view.set_tags(names)
+        self.statusBar().showMessage(self.tr("标签已保存"), 4000)
+
+    def generate_entry_tags(self, entry_id: int) -> None:
+        if self._agent_runtime is None:
+            self.statusBar().showMessage(self.tr("请先配置 AI 服务"), 5000)
+            return
+        try:
+            self._tagging_entry_id = entry_id
+            self._active_tagging_run_id = self._agent_runtime.submit(
+                entry_id, "tagging"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.statusBar().showMessage(
+                self.tr("AI 标签任务启动失败：{0}").format(str(exc)), 6000
+            )
+            return
+        self.statusBar().showMessage(self.tr("正在生成标签…"))
+
+    def _on_tagging_state_changed(self, event: object) -> None:
+        from core.agent.runtime import AgentUIEvent
+
+        evt: AgentUIEvent = event
+        if (
+            evt.agent_type != "tagging"
+            or evt.entry_id != self._tagging_entry_id
+            or evt.run_id != self._active_tagging_run_id
+        ):
+            return
+        if evt.status == "error":
+            self.statusBar().showMessage(
+                self.tr("AI 标签生成失败：{0}").format(evt.error or self.tr("未知错误")),
+                6000,
+            )
+            return
+        if evt.status != "done" or not evt.result_json:
+            return
+        try:
+            result = json.loads(evt.result_json)
+            suggestions = [
+                str(name).strip()
+                for name in result.get("tags", [])
+                if str(name).strip()
+            ]
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            suggestions = []
+        if not suggestions:
+            self.statusBar().showMessage(self.tr("AI 未生成可用标签"), 5000)
+            return
+        accepted = QMessageBox.question(
+            self,
+            self.tr("确认 AI 标签"),
+            self.tr("是否保存以下标签？\n{0}").format("、".join(suggestions)),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if accepted == QMessageBox.StandardButton.Yes:
+            try:
+                asyncio.get_running_loop().create_task(
+                    self.manage_entry_tags(evt.entry_id, suggestions)
+                )
+            except RuntimeError:
+                self.statusBar().showMessage(self.tr("标签保存任务无法启动"), 5000)
 
     def confirm_delete(self) -> bool:
         result = QMessageBox.question(
@@ -618,6 +975,50 @@ class MainWindow(QMainWindow):
     async def _delete_entry_slot(self, entry_id: int) -> None:
         await self.delete_entry(entry_id)
 
+    @asyncSlot(int)
+    async def _add_to_collection_slot(self, entry_id: int) -> None:
+        await self.add_entry_to_collection(entry_id)
+
+    @asyncSlot(int)
+    async def _export_markdown_slot(self, entry_id: int) -> None:
+        path = QFileDialog.getExistingDirectory(self, self.tr("选择 Markdown 导出目录"))
+        if path:
+            await self.export_entry_markdown(entry_id, path)
+
+    @asyncSlot(list)
+    async def _batch_export_digest_slot(self, entry_ids: list[int]) -> None:
+        path = QFileDialog.getExistingDirectory(self, self.tr("选择 Digest 导出目录"))
+        if path:
+            await self.export_entries_digest(entry_ids, path)
+
+    @asyncSlot(int)
+    async def _manage_tags_slot(self, entry_id: int) -> None:
+        await self.manage_entry_tags(entry_id)
+
+    @asyncSlot(int)
+    async def _generate_tags_slot(self, entry_id: int) -> None:
+        self.generate_entry_tags(entry_id)
+
+    @asyncSlot(int)
+    async def _select_collection_slot(self, collection_id: int) -> None:
+        await self.select_collection(collection_id)
+
+    @asyncSlot(str)
+    async def _create_collection_slot(self, name: str) -> None:
+        await self.create_collection(name)
+
+    @asyncSlot(int, str)
+    async def _rename_collection_slot(self, collection_id: int, name: str) -> None:
+        await self.rename_collection(collection_id, name)
+
+    @asyncSlot(int)
+    async def _delete_collection_slot(self, collection_id: int) -> None:
+        await self.delete_collection(collection_id)
+
+    @asyncSlot(int, str)
+    async def _save_note_slot(self, entry_id: int, body: str) -> None:
+        await self.save_note(entry_id, body)
+
 
     @asyncSlot(list, bool)
     async def _batch_mark_read_slot(self, entry_ids: list[int], read: bool) -> None:
@@ -737,5 +1138,6 @@ class MainWindow(QMainWindow):
             self.reader_view.toolbar.show_sidebar_restore(not self._sidebar_visible_before_focus)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+        self.reader_view.note_editor.flush()
         self.save_ui_state()
         super().closeEvent(event)

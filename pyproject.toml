@@ -30,6 +30,14 @@ dev = [
     "pytest-qt>=4.4",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "core*", "store*", "ui*"]
+exclude = ["tests*", "tools*", "docs*", "spec*", "RSS*", "platform*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.j2", "*.yaml", "*.qss", "*.svg", "*.png", "*.ts", "*.qm"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -42,4 +50,3 @@ ignore = ["E501"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-

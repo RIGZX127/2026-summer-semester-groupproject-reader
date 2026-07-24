@@ -127,6 +127,28 @@ def feed_icon(color: str = "#7D9188") -> QIcon:
     return QIcon(pixmap)
 
 
+def import_icon(color: str = "#EAF0ED") -> QIcon:
+    """Draw a document with an inward arrow for file import."""
+    pixmap, painter = _canvas(color)
+    painter.drawRoundedRect(5, 3, 10, 14, 2, 2)
+    painter.drawLine(2, 10, 10, 10)
+    painter.drawLine(7, 7, 10, 10)
+    painter.drawLine(7, 13, 10, 10)
+    painter.end()
+    return QIcon(pixmap)
+
+
+def export_icon(color: str = "#EAF0ED") -> QIcon:
+    """Draw a document with an outward arrow for file export."""
+    pixmap, painter = _canvas(color)
+    painter.drawRoundedRect(5, 3, 10, 14, 2, 2)
+    painter.drawLine(10, 10, 18, 10)
+    painter.drawLine(15, 7, 18, 10)
+    painter.drawLine(15, 13, 18, 10)
+    painter.end()
+    return QIcon(pixmap)
+
+
 def reader_icon(color: str = "#68766F") -> QIcon:
     pixmap, painter = _canvas(color)
     painter.drawRoundedRect(4, 3, 12, 14, 2, 2)

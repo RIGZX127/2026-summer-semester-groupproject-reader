@@ -135,6 +135,16 @@ def test_sidebar_icon_opens_settings_without_top_menu(tmp_path, qtbot) -> None:
     assert window._settings_dialog is not None
 
 
+def test_opml_actions_live_in_sidebar_without_top_menu(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+
+    assert window.menuBar().actions() == []
+    assert not hasattr(window, "ai_menu")
+    assert not hasattr(window, "feed_menu")
+    assert window.sidebar.import_opml_button.isVisibleTo(window.sidebar)
+    assert window.sidebar.export_opml_button.isVisibleTo(window.sidebar)
+
+
 def test_reader_can_hide_sidebar_and_enter_focus_mode(tmp_path, qtbot) -> None:
     window = _window(tmp_path, qtbot)
     window.sidebar.collapse_button.click()

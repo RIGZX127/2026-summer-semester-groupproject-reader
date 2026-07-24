@@ -65,6 +65,8 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton#SummaryHeader {{ border: 0; background: transparent; text-align: left; font-weight: 650; }}
     QLabel#SummaryStatus {{ color: {p.text_muted}; }}
     QLabel#SummaryPlaceholder {{ color: {p.text_muted}; padding: 12px; }}
+    QLabel#ReaderTags {{ color: {p.text_muted}; background: {p.surface_alt};
+        border-bottom: 1px solid {p.border}; padding: 6px 14px; }}
     QTextBrowser#SummaryContent {{ color: {p.text}; background: {p.surface}; border: 0; }}
     QWidget#EntryBatchToolbar {{ background: {p.surface_alt}; border: 1px solid {p.border};
         border-radius: {RADIUS["control"]}px; }}
@@ -74,6 +76,21 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QGroupBox {{ margin-top: 12px; padding-top: 14px; border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; font-weight: 650; }}
     QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 4px; }}
     QTabWidget::pane {{ border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; background: {p.surface}; }}
+    QTabWidget#ReaderBottomTabs QTabBar::tab {{ color: {p.text_muted};
+        background: {p.surface_alt}; border: 1px solid {p.border}; border-bottom: 0;
+        padding: 7px 14px; margin-right: 2px; }}
+    QTabWidget#ReaderBottomTabs QTabBar::tab:selected {{ color: {p.text};
+        background: {p.surface}; font-weight: 650; }}
+    QTabWidget#ReaderBottomTabs QTabBar::tab:hover:!selected {{ color: {p.text};
+        background: {p.surface_hover}; }}
+    QPlainTextEdit#NoteTextEdit {{ color: {p.text}; background: {p.control};
+        border: 1px solid {p.border}; border-radius: {RADIUS["control"]}px;
+        padding: 8px; selection-color: {p.text_on_accent};
+        selection-background-color: {p.accent}; }}
+    QPlainTextEdit#NoteTextEdit:focus {{ border: 2px solid {p.focus}; }}
+    QPlainTextEdit#NoteTextEdit:disabled {{ color: {p.text_disabled};
+        background: {p.surface_alt}; }}
+    QLabel#NoteSaveStatus {{ color: {p.text_muted}; }}
     QWidget#Sidebar QPushButton {{ color: white; background: {p.sidebar_selected}; border-color: {p.sidebar_hover}; }}
     QWidget#Sidebar QPushButton#SidebarCollapseButton {{ min-width: 28px; max-width: 28px;
         min-height: 28px; max-height: 28px; padding: 0; background: transparent;

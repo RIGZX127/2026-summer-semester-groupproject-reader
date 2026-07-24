@@ -54,6 +54,23 @@ def test_sidebar_exposes_compact_ai_settings_entry(qtbot) -> None:
         sidebar.ai_button.click()
 
 
+def test_sidebar_exposes_opml_import_and_export_icons(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+
+    assert sidebar.import_opml_button.text() == ""
+    assert sidebar.import_opml_button.toolTip() == "导入 OPML"
+    assert sidebar.import_opml_button.accessibleName() == "导入 OPML"
+    assert sidebar.export_opml_button.text() == ""
+    assert sidebar.export_opml_button.toolTip() == "导出 OPML"
+    assert sidebar.export_opml_button.accessibleName() == "导出 OPML"
+
+    with qtbot.waitSignal(sidebar.import_opml_requested, timeout=500):
+        sidebar.import_opml_button.click()
+    with qtbot.waitSignal(sidebar.export_opml_requested, timeout=500):
+        sidebar.export_opml_button.click()
+
+
 def test_sidebar_header_has_icon_only_collapse_control(qtbot) -> None:
     sidebar = Sidebar()
     qtbot.addWidget(sidebar)

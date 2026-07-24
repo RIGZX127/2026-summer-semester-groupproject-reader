@@ -93,9 +93,14 @@ class EntryListWidget(QWidget):
     mark_read_requested = Signal(int, bool)
     star_requested = Signal(int)
     delete_requested = Signal(int)
+    add_to_collection_requested = Signal(int)
+    export_markdown_requested = Signal(int)
+    manage_tags_requested = Signal(int)
+    generate_tags_requested = Signal(int)
     batch_mark_read_requested = Signal(list, bool)
     batch_star_requested = Signal(list)
     batch_delete_requested = Signal(list)
+    batch_export_digest_requested = Signal(list)
     VALID_STATES = frozenset({"empty", "loading", "content", "error", "offline", "disabled"})
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -365,10 +370,24 @@ class EntryListWidget(QWidget):
         is_starred = bool(item.data(_STARRED_ROLE))
         read_action = menu.addAction(self.tr("标记未读") if is_read else self.tr("标记已读"))
         star_action = menu.addAction(self.tr("取消收藏") if is_starred else self.tr("收藏"))
+        collection_action = menu.addAction(self.tr("添加到收藏夹…"))
+        tags_action = menu.addAction(self.tr("管理标签…"))
+        ai_tags_action = menu.addAction(self.tr("AI 生成标签"))
+        export_action = menu.addAction(self.tr("导出 Markdown…"))
         menu.addSeparator()
         delete_action = menu.addAction(self.tr("删除"))
         read_action.triggered.connect(lambda: self._emit_read_for_item(item, not is_read))
         star_action.triggered.connect(lambda: self._emit_star_for_item(item))
+        collection_action.triggered.connect(
+            lambda: self._emit_add_to_collection_for_item(item)
+        )
+        tags_action.triggered.connect(lambda: self._emit_manage_tags_for_item(item))
+        ai_tags_action.triggered.connect(
+            lambda: self._emit_generate_tags_for_item(item)
+        )
+        export_action.triggered.connect(
+            lambda: self._emit_export_markdown_for_item(item)
+        )
         delete_action.triggered.connect(lambda: self._emit_delete_for_item(item))
         menu.exec(self.entry_list.viewport().mapToGlobal(position))
 
@@ -377,6 +396,7 @@ class EntryListWidget(QWidget):
         read_action = menu.addAction(self.tr("标记已读"))
         unread_action = menu.addAction(self.tr("标记未读"))
         star_action = menu.addAction(self.tr("切换收藏"))
+        export_action = menu.addAction(self.tr("导出 Digest…"))
         delete_action = menu.addAction(self.tr("删除选中文章"))
         has_selection = bool(self.selected_entry_ids())
         for action in menu.actions():
@@ -394,6 +414,9 @@ class EntryListWidget(QWidget):
         star_action.triggered.connect(
             lambda _checked=False: self.batch_star_requested.emit(self.selected_entry_ids())
         )
+        export_action.triggered.connect(
+            lambda _checked=False: self._emit_batch_export()
+        )
         delete_action.triggered.connect(
             lambda _checked=False: self.batch_delete_requested.emit(self.selected_entry_ids())
         )
@@ -407,6 +430,23 @@ class EntryListWidget(QWidget):
 
     def _emit_delete_for_item(self, item: QListWidgetItem) -> None:
         self.delete_requested.emit(int(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _emit_add_to_collection_for_item(self, item: QListWidgetItem) -> None:
+        self.add_to_collection_requested.emit(int(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _emit_export_markdown_for_item(self, item: QListWidgetItem) -> None:
+        self.export_markdown_requested.emit(int(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _emit_manage_tags_for_item(self, item: QListWidgetItem) -> None:
+        self.manage_tags_requested.emit(int(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _emit_generate_tags_for_item(self, item: QListWidgetItem) -> None:
+        self.generate_tags_requested.emit(int(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _emit_batch_export(self) -> None:
+        entry_ids = self.selected_entry_ids()
+        if entry_ids:
+            self.batch_export_digest_requested.emit(entry_ids)
 
     def _on_current_item_changed(
         self,

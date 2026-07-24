@@ -16,16 +16,17 @@ import pathlib
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
+from app.paths import ensure_user_data_dir
 from app.state import state
 from app.styles import application_stylesheet
 from core.digest.controller import DigestController
 from core.feed.opml_controller import OPMLController
 from core.feed.sync import SyncService
 from core.reader.pipeline import ReaderPipeline
+from store.collection_store import CollectionStore
 from store.db import DatabaseManager
 from store.entry_store import EntryStore
 from store.feed_store import FeedStore
-from store.collection_store import CollectionStore
 from store.note_store import NoteStore
 from store.tag_store import TagStore
 from ui.main_window import MainWindow
@@ -60,9 +61,7 @@ async def _get_entry_tag_names(tag_store, entry_id: int) -> list[str]:
 
 def _default_data_path() -> str:
     """返回平台默认数据库路径。"""
-    base = pathlib.Path.home() / ".mercury"
-    base.mkdir(parents=True, exist_ok=True)
-    return str(base / "mercury.db")
+    return str(ensure_user_data_dir() / "mercury.db")
 
 
 def _build_agent_runtime(
@@ -93,7 +92,7 @@ def _build_agent_runtime(
 
     # ── 模板加载器 ──────────────────────────────────────────────────
     builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
-    sandbox_dir = str(pathlib.Path.home() / ".mercury" / "prompts")
+    sandbox_dir = str(ensure_user_data_dir() / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
 
     # ── LLM 配置 ────────────────────────────────────────────────────
@@ -206,7 +205,7 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
 
     # ── 模板加载器 ────────────────────────────────────────────────────
     builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
-    sandbox_dir = str(pathlib.Path.home() / ".mercury" / "prompts")
+    sandbox_dir = str(ensure_user_data_dir() / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
 
     pipeline = ReaderPipeline(state.db)
