@@ -147,6 +147,9 @@ class SummaryPanel(QFrame):
 
     def set_entry(self, entry_id: int | None) -> None:
         """Reset panel for a new article entry."""
+        # Cancel running summary for the previous entry to avoid wasted LLM calls
+        if self._active_run_id and self._runtime is not None:
+            self._runtime.cancel(self._active_run_id)
         self._entry_id = entry_id
         self._active_run_id = None
         self._pending_text = ""
