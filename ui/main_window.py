@@ -377,6 +377,11 @@ class MainWindow(QMainWindow):
             dialog.provider_panel.show_test_result(success, models, error)
 
     async def refresh_entries(self) -> None:
+        # If a tag filter is active, refresh the filtered view instead.
+        if self._active_tag_filter is not None:
+            await self._load_tag_filtered()
+            return
+
         feed_id = state.selected_feed_id
         global_search = self._search_scope == "all" and bool(self._search_query)
         if feed_id is None and not global_search:
@@ -1094,23 +1099,28 @@ class MainWindow(QMainWindow):
         """Clear the active tag filter and restore feed view."""
         self._active_tag_filter = None
         self.sidebar.hide_tag_filter()
+        loop = asyncio.get_running_loop()
         state = self.app_state
         if state.selected_feed_id is not None:
-            asyncio.get_running_loop().create_task(
-                self.select_feed(state.selected_feed_id)
-            )
+            self._selected_entry_id = None
+            self.reader_view.note_editor.flush()
+            self.reader_view.note_editor.set_entry(None, "")
+            loop.create_task(self.select_feed(state.selected_feed_id))
 
     async def _load_tag_filtered(self) -> None:
         """Load entries filtered by the active tag."""
         if self._tag_store is None or self._active_tag_filter is None:
             return
+        self.entry_list.set_state("loading")
         try:
             row = await self._tag_store.get_by_name(
                 self._active_tag_filter.casefold()
             )
         except Exception:
+            self.entry_list.set_state("error", self.tr("标签查询失败"))
             return
         if row is None:
+            self.entry_list.set_state("empty", self.tr("标签不存在"))
             return
         entry_ids = await self._tag_store.get_entries_by_tag(row.id)
         if not entry_ids:
@@ -1119,6 +1129,7 @@ class MainWindow(QMainWindow):
         try:
             entries = await self._entry_store.get_by_ids(entry_ids)
         except Exception:
+            self.entry_list.set_state("error", self.tr("文章加载失败"))
             return
         self.entry_list.set_entries(entries)
 
