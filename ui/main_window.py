@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QInputDialog,
     QMainWindow,
@@ -570,6 +571,94 @@ class MainWindow(QMainWindow):
         if self.reader_view.note_editor.entry_id == entry_id:
             self.reader_view.note_editor.set_save_state("saved")
 
+    async def _show_export_dialog(
+        self,
+        *,
+        entry_id: int | None = None,
+        entry_ids: list[int] | None = None,
+    ) -> None:
+        """Show the export dialog with template preview, then execute export."""
+        from ui.dialogs.export_dialog import ExportDialog
+
+        if self._digest_controller is None:
+            self.statusBar().showMessage(self.tr("导出功能当前不可用"), 5000)
+            return
+
+        templates = self._digest_controller.list_templates()
+        if not templates:
+            self.statusBar().showMessage(self.tr("没有可用的导出模板"), 5000)
+            return
+
+        # Generate preview for single-entry export
+        preview = ""
+        if entry_id is not None:
+            try:
+                preview = await self._digest_controller.preview(entry_id, templates[0])
+            except Exception:
+                pass
+
+        dialog = ExportDialog(templates, preview, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        template = dialog.selected_template()
+        dest_dir = dialog.destination()
+
+        if entry_id is not None:
+            await self._do_export_single(entry_id, dest_dir, template)
+        elif entry_ids:
+            await self._do_export_multi(entry_ids, dest_dir, template)
+
+    async def _do_export_single(
+        self, entry_id: int, dest_dir: str, template: str
+    ) -> None:
+        if self._digest_controller is None:
+            return
+        try:
+            result = await self._digest_controller.export_single(
+                entry_id, dest_dir, template
+            )
+        except Exception as exc:
+            self.statusBar().showMessage(
+                self.tr("导出失败：{0}").format(str(exc)), 6000
+            )
+            return
+        if result.ok:
+            self.statusBar().showMessage(
+                self.tr("Markdown 已导出：{0}").format(str(result.path)), 6000
+            )
+        else:
+            self.statusBar().showMessage(
+                self.tr("导出失败：{0}").format(result.error or self.tr("未知错误")), 6000
+            )
+
+    async def _do_export_multi(
+        self, entry_ids: list[int], dest_dir: str, template: str
+    ) -> None:
+        if self._digest_controller is None:
+            return
+        try:
+            result = await self._digest_controller.export_multi(
+                entry_ids, dest_dir, template
+            )
+        except Exception as exc:
+            self.statusBar().showMessage(
+                self.tr("Digest 导出失败：{0}").format(str(exc)), 6000
+            )
+            return
+        if result.ok:
+            self.entry_list.set_batch_mode(False)
+            self.statusBar().showMessage(
+                self.tr("Digest 已导出：{0}").format(str(result.path)), 6000
+            )
+        else:
+            self.statusBar().showMessage(
+                self.tr("Digest 导出失败：{0}").format(
+                    result.error or self.tr("未知错误")
+                ),
+                6000,
+            )
+
     async def export_entry_markdown(self, entry_id: int, dest_dir: str) -> None:
         if self._digest_controller is None:
             self.statusBar().showMessage(self.tr("导出功能当前不可用"), 5000)
@@ -1023,15 +1112,11 @@ class MainWindow(QMainWindow):
 
     @asyncSlot(int)
     async def _export_markdown_slot(self, entry_id: int) -> None:
-        path = QFileDialog.getExistingDirectory(self, self.tr("选择 Markdown 导出目录"))
-        if path:
-            await self.export_entry_markdown(entry_id, path)
+        await self._show_export_dialog(entry_id=entry_id)
 
     @asyncSlot(list)
     async def _batch_export_digest_slot(self, entry_ids: list[int]) -> None:
-        path = QFileDialog.getExistingDirectory(self, self.tr("选择 Digest 导出目录"))
-        if path:
-            await self.export_entries_digest(entry_ids, path)
+        await self._show_export_dialog(entry_ids=entry_ids)
 
     @asyncSlot(int)
     async def _manage_tags_slot(self, entry_id: int) -> None:
