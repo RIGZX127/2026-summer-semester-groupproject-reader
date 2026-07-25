@@ -174,8 +174,8 @@ async def test_summary_no_markdown_raises_error(
     agent.register(mock_rt)
     handler = mock_rt.register.call_args[0][1]
 
-    with pytest.raises(SummaryAgentError, match="No markdown content"):
-        await handler(entry_id=entry_id, run_id="run-err")
+    result = await handler(entry_id=entry_id, run_id="run-err")
+    assert result == {"error": "no_content", "summary": "", "word_count": 0}
 
 
 @pytest.mark.asyncio

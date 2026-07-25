@@ -133,9 +133,7 @@ class SummaryAgent:
         # ── 2. 获取文章 Markdown ──────────────────────────────────────
         rendered = await self._pipeline.build(entry_id)
         if not rendered.markdown:
-            raise SummaryAgentError(
-                f"No markdown content available for entry {entry_id}"
-            )
+            return {"error": "no_content", "summary": "", "word_count": 0}
 
         # ── 3. 渲染提示词 ────────────────────────────────────────────
         system_prompt, user_prompt = self._templates.render(
