@@ -975,6 +975,19 @@ class MainWindow(QMainWindow):
             msg.setDetailedText("\n\n".join(detail_lines))
             msg.exec()
 
+        # Auto-sync newly imported feeds so their articles appear immediately
+        if result.success:
+            self.statusBar().showMessage(
+                self.tr("OPML 导入完成，正在同步新订阅源…"), 4000
+            )
+            for feed_url in result.success:
+                try:
+                    feed = await self._feed_store.get_by_url(feed_url.url)
+                    if feed is not None:
+                        await self.sync_feed(feed.id)
+                except Exception:
+                    pass
+
     async def import_opml_file(self, path: str) -> None:
         if self._opml_controller is None:
             QMessageBox.warning(self, self.tr("导入 OPML"), self.tr("OPML 控制器未初始化。"))

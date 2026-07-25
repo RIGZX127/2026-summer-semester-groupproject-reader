@@ -72,6 +72,12 @@ class FeedStore:
         ).fetchone()
         return _row_to_feed(row) if row else None
 
+    def _sync_get_by_url(self, url: str) -> FeedRow | None:
+        row = self._conn.execute(
+            "SELECT * FROM feeds WHERE url = ?", (url,)
+        ).fetchone()
+        return _row_to_feed(row) if row else None
+
     def _sync_list_all(self) -> list[FeedRow]:
         rows = self._conn.execute(
             "SELECT * FROM feeds ORDER BY created_at ASC"
@@ -148,6 +154,12 @@ class FeedStore:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None, self._db.guarded, self._sync_get, feed_id
+        )
+
+    async def get_by_url(self, url: str) -> FeedRow | None:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, self._db.guarded, self._sync_get_by_url, url
         )
 
     async def list_all(self) -> list[FeedRow]:
