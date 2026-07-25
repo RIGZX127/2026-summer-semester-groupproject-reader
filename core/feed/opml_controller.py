@@ -92,6 +92,32 @@ class OPMLController:
 
         return result
 
+    async def import_urls(
+        self, items: list[tuple[str, str]]
+    ) -> ImportResult:
+        """直接导入 URL+标题列表（由对话框预解析后传入）。
+
+        Returns:
+            ImportResult 含 success / skipped / failed 分类。
+        """
+        result = ImportResult()
+        try:
+            added = await self._feed_store.add_many(items)
+        except Exception as exc:
+            # 全部失败
+            for url, title in items:
+                result.failed.append((FeedUrl(url=url, title=title), str(exc)))
+            return result
+
+        added_urls = {url for _, url, _ in added}
+        for url, title in items:
+            feed_url = FeedUrl(url=url, title=title)
+            if url in added_urls:
+                result.success.append(feed_url)
+            else:
+                result.skipped.append(feed_url)
+        return result
+
     async def export_feeds_to_opml(self, path: str) -> str:
         """将所有订阅源导出为 OPML 文件。
 

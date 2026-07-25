@@ -935,6 +935,46 @@ class MainWindow(QMainWindow):
         self.entry_list.set_batch_mode(False)
         self.statusBar().showMessage(self.tr("已删除 {0} 篇文章").format(len(entry_ids)), 4000)
 
+    async def _import_opml_urls(
+        self, urls: list[str], titles: list[str]
+    ) -> None:
+        """Import feeds selected in the OPML preview dialog."""
+        if self._opml_controller is None:
+            QMessageBox.warning(self, self.tr("导入 OPML"), self.tr("OPML 控制器未初始化。"))
+            return
+        self.statusBar().showMessage(self.tr("正在导入 OPML…"))
+        items = list(zip(urls, titles))
+        try:
+            result = await self._opml_controller.import_urls(items)
+            await self.load_feeds()
+        except Exception as exc:
+            QMessageBox.warning(self, self.tr("导入 OPML 失败"), str(exc))
+            self.statusBar().showMessage(self.tr("OPML 导入失败"), 6000)
+            return
+        self.statusBar().showMessage(
+            self.tr("OPML 导入完成：新增 {0} 个，跳过 {1} 个，失败 {2} 个").format(
+                len(result.success), len(result.skipped), len(result.failed)
+            ),
+            8000,
+        )
+        if result.failed:
+            detail_lines = []
+            for feed_url, error in result.failed:
+                name = feed_url.title or feed_url.url
+                detail_lines.append(
+                    self.tr("{name}（{url}）：{error}").format(
+                        name=name, url=feed_url.url, error=error
+                    )
+                )
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle(self.tr("OPML 导入 — 失败详情"))
+            msg.setText(
+                self.tr("以下 {0} 个订阅源未能导入：").format(len(result.failed))
+            )
+            msg.setDetailedText("\n\n".join(detail_lines))
+            msg.exec()
+
     async def import_opml_file(self, path: str) -> None:
         if self._opml_controller is None:
             QMessageBox.warning(self, self.tr("导入 OPML"), self.tr("OPML 控制器未初始化。"))
@@ -1206,14 +1246,16 @@ class MainWindow(QMainWindow):
 
     @asyncSlot()
     async def _import_opml_slot(self) -> None:
-        path, _selected_filter = QFileDialog.getOpenFileName(
-            self,
-            self.tr("导入 OPML"),
-            "",
-            self.tr("OPML 文件 (*.opml *.xml);;所有文件 (*.*)"),
-        )
-        if path:
-            await self.import_opml_file(path)
+        from ui.dialogs.opml_dialog import OPMLImportDialog
+
+        dialog = OPMLImportDialog(parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        urls = dialog.selected_urls()
+        titles = dialog.selected_titles()
+        if not urls:
+            return
+        await self._import_opml_urls(urls, titles)
 
     @asyncSlot()
     async def _export_opml_slot(self) -> None:
