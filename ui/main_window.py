@@ -222,6 +222,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("订阅添加成功"), 4000)
 
     async def select_feed(self, feed_id: int) -> None:
+        # If the same feed is already selected, skip resetting the reader.
+        if state.selected_feed_id == feed_id:
+            return
         self.reader_view.note_editor.flush()
         self.reader_view.note_editor.set_entry(None, "")
         state.selected_feed_id = feed_id
@@ -1099,12 +1102,12 @@ class MainWindow(QMainWindow):
         """Clear the active tag filter and restore feed view."""
         self._active_tag_filter = None
         self.sidebar.hide_tag_filter()
+        self._selected_entry_id = None
+        self.reader_view.note_editor.flush()
+        self.reader_view.note_editor.set_entry(None, "")
+        self.reader_view.show_empty()
         loop = asyncio.get_running_loop()
-        if state.selected_feed_id is not None:
-            self._selected_entry_id = None
-            self.reader_view.note_editor.flush()
-            self.reader_view.note_editor.set_entry(None, "")
-            loop.create_task(self.select_feed(state.selected_feed_id))
+        loop.create_task(self.refresh_entries())
 
     async def _load_tag_filtered(self) -> None:
         """Load entries filtered by the active tag."""
