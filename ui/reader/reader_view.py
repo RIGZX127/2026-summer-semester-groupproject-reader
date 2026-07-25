@@ -39,6 +39,7 @@ class ExternalLinkPage(QWebEnginePage):
 
 class ReaderView(QWidget):
     retry_requested = Signal()
+    tag_filter_requested = Signal(str)
     VALID_MODES = frozenset({"reader", "web", "split"})
 
     def __init__(
@@ -62,6 +63,7 @@ class ReaderView(QWidget):
         from ui.reader.tag_bar import TagBar
         self.tag_bar = TagBar(self)
         self.tag_bar.setAccessibleName(self.tr("文章标签"))
+        self.tag_bar.tag_clicked.connect(self.tag_filter_requested)
         self.tag_bar.hide()
         self.summary_panel = SummaryPanel(runtime=agent_runtime, parent=self)
         self.note_editor = NoteEditor(self)

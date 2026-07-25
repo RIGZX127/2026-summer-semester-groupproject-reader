@@ -50,6 +50,7 @@ class Sidebar(QWidget):
     import_opml_requested = Signal()
     export_opml_requested = Signal()
     collapse_requested = Signal()
+    tag_filter_cleared = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -172,6 +173,24 @@ class Sidebar(QWidget):
         # Kept as a compatibility hook for older UI tests and integrations.
         self.ai_card = None
 
+        # ── Tag filter bar ──────────────────────────────────────────
+        self.tag_filter_bar = QWidget()
+        self.tag_filter_bar.setObjectName("TagFilterBar")
+        self.tag_filter_bar.hide()
+        filter_layout = QHBoxLayout(self.tag_filter_bar)
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(6)
+        self.tag_filter_label = QLabel()
+        self.tag_filter_label.setObjectName("TagFilterLabel")
+        self.tag_filter_clear_btn = QPushButton("×")
+        self.tag_filter_clear_btn.setObjectName("TagFilterClear")
+        self.tag_filter_clear_btn.setFixedSize(24, 24)
+        self.tag_filter_clear_btn.setToolTip(self.tr("清除标签筛选"))
+        self.tag_filter_clear_btn.clicked.connect(self.tag_filter_cleared)
+        filter_layout.addWidget(self.tag_filter_label)
+        filter_layout.addWidget(self.tag_filter_clear_btn)
+        filter_layout.addStretch()
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 6, 18, 18)
         layout.setSpacing(12)
@@ -179,6 +198,7 @@ class Sidebar(QWidget):
         layout.addLayout(actions)
         layout.addWidget(section)
         layout.addWidget(self.feed_list, 1)
+        layout.addWidget(self.tag_filter_bar)
         self.collections = CollectionsWidget(self)
         layout.addWidget(self.collections, 1)
 
@@ -190,6 +210,15 @@ class Sidebar(QWidget):
         self.collapse_button.clicked.connect(self.collapse_requested)
         self.feed_list.currentItemChanged.connect(self._on_current_item_changed)
         self.feed_list.customContextMenuRequested.connect(self._show_feed_menu)
+
+    def show_tag_filter(self, tag_name: str) -> None:
+        """Display the active tag filter bar."""
+        self.tag_filter_label.setText(self.tr("筛选：{0}").format(tag_name))
+        self.tag_filter_bar.show()
+
+    def hide_tag_filter(self) -> None:
+        """Hide the tag filter bar."""
+        self.tag_filter_bar.hide()
 
     def set_feeds(self, rows: list[tuple[FeedRow, int]]) -> None:
         selected_id = self.current_feed_id()

@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self._search_query = ""
         self._search_scope = "feed"
         self._sidebar_visible_before_focus = True
+        self._active_tag_filter: str | None = None
         self._active_tagging_run_id: str | None = None
         self._tagging_entry_id: int | None = None
 
@@ -129,6 +130,8 @@ class MainWindow(QMainWindow):
             self._batch_export_digest_slot
         )
         self.reader_view.retry_requested.connect(self._retry_reader)
+        self.reader_view.tag_filter_requested.connect(self._filter_by_tag)
+        self.sidebar.tag_filter_cleared.connect(self._clear_tag_filter)
         self.reader_view.note_editor.save_requested.connect(self._save_note_slot)
         self.sidebar.collections.collection_selected.connect(
             self._select_collection_slot
@@ -961,6 +964,46 @@ class MainWindow(QMainWindow):
     @asyncSlot(str)
     async def _search_scope_slot(self, scope: str) -> None:
         await self.set_search_scope(scope)
+
+    # ── Tag filter ───────────────────────────────────────────────────────
+
+    def _filter_by_tag(self, tag_name: str) -> None:
+        """Triggered when a tag badge is clicked in the reader."""
+        self._active_tag_filter = tag_name
+        self.sidebar.show_tag_filter(tag_name)
+        asyncio.get_running_loop().create_task(self._load_tag_filtered())
+
+    def _clear_tag_filter(self) -> None:
+        """Clear the active tag filter and restore feed view."""
+        self._active_tag_filter = None
+        self.sidebar.hide_tag_filter()
+        state = self.app_state
+        if state.selected_feed_id is not None:
+            asyncio.get_running_loop().create_task(
+                self.select_feed(state.selected_feed_id)
+            )
+
+    async def _load_tag_filtered(self) -> None:
+        """Load entries filtered by the active tag."""
+        if self._tag_store is None or self._active_tag_filter is None:
+            return
+        try:
+            row = await self._tag_store.get_by_name(
+                self._active_tag_filter.casefold()
+            )
+        except Exception:
+            return
+        if row is None:
+            return
+        entry_ids = await self._tag_store.get_entries_by_tag(row.id)
+        if not entry_ids:
+            self.entry_list.set_state("empty", self.tr("没有找到带有此标签的文章。"))
+            return
+        try:
+            entries = await self._entry_store.get_by_ids(entry_ids)
+        except Exception:
+            return
+        self.entry_list.set_entries(entries)
 
     @asyncSlot(int, bool)
     async def _mark_read_slot(self, entry_id: int, read: bool) -> None:

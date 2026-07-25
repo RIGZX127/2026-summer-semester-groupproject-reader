@@ -156,5 +156,13 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
         font-size: 13px; min-height: 24px; }}
     QPushButton#TagBadge:hover {{ background: {p.surface_hover}; }}
     QPushButton#TagBadge:pressed {{ background: {p.surface_pressed}; }}
+    QWidget#TagFilterBar {{ background: {p.accent_soft}; border-radius: 8px;
+        padding: 4px 8px; }}
+    QLabel#TagFilterLabel {{ color: {p.accent}; font-size: 13px; font-weight: 600; }}
+    QPushButton#TagFilterClear {{ min-width: 24px; max-width: 24px;
+        min-height: 24px; max-height: 24px; padding: 0;
+        color: {p.accent}; background: transparent; border: 0;
+        font-size: 16px; font-weight: 700; }}
+    QPushButton#TagFilterClear:hover {{ color: {p.error}; }}
     QPushButton#TagAddButton:hover {{ color: {p.accent_hover}; }}
     """

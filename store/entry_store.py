@@ -111,6 +111,16 @@ class EntryStore:
         ).fetchone()
         return _row_to_entry(row) if row else None
 
+    def _sync_get_by_ids(self, entry_ids: list[int]) -> list[EntryListItem]:
+        if not entry_ids:
+            return []
+        placeholders = ",".join("?" * len(entry_ids))
+        rows = self._conn.execute(
+            f"SELECT * FROM entries WHERE id IN ({placeholders}) AND is_deleted = 0 ORDER BY published_at DESC",  # noqa: S608
+            entry_ids,
+        ).fetchall()
+        return [_row_to_list_item(r) for r in rows]
+
     def _sync_list_by_feed(self, feed_id: int, limit: int, offset: int) -> list[EntryListItem]:
         rows = self._conn.execute(
             """SELECT * FROM entries
@@ -147,6 +157,11 @@ class EntryStore:
     async def get(self, entry_id: int) -> EntryRow | None:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_get, entry_id)
+
+    async def get_by_ids(self, entry_ids: list[int]) -> list[EntryListItem]:
+        """Batch-fetch entries by ID, returning list items sorted by published_at desc."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_get_by_ids, entry_ids)
 
     async def list_by_feed(
         self, feed_id: int, limit: int = 50, offset: int = 0
