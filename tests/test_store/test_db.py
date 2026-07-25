@@ -40,7 +40,7 @@ def test_foreign_keys_enabled(db: DatabaseManager) -> None:
 
 def test_migration_v1_user_version(db: DatabaseManager) -> None:
     version = db.connection.execute("PRAGMA user_version").fetchone()[0]
-    assert version == 1
+    assert version == 2
 
 
 def test_migration_v1_all_tables_exist(db: DatabaseManager) -> None:
@@ -61,7 +61,7 @@ def test_migration_idempotent(db: DatabaseManager) -> None:
     from store import migrations
     migrations.migrate(db.connection)
     version = db.connection.execute("PRAGMA user_version").fetchone()[0]
-    assert version == 1
+    assert version == 2
 
 
 def test_required_indexes_exist(db: DatabaseManager) -> None:

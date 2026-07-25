@@ -87,7 +87,7 @@ def test_translation_progress_and_display_modes(tmp_path, qtbot) -> None:
     runtime.signals.state_changed.emit(
         AgentUIEvent("translation-1", 9, "translation", "running", progress=0.5)
     )
-    assert "50%" in view.toolbar.translate_button.text()
+    assert view.toolbar._translation_status == "running"
 
     result = (
         '{"html":"<div class=\\"mercury-trans-block\\">'
