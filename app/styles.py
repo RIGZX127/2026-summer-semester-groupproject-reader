@@ -137,9 +137,9 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton[buttonRole="danger"]:hover {{ background: {p.error_soft}; }}
     QFrame#SummarySeparator {{ color: {p.border}; }}
     QComboBox#SummaryLineHeightCombo {{ min-height: 28px; font-size: 12px; padding: 0 6px; }}
-    QLabel#TagChipLabel {{ color: {p.accent}; background: {p.accent_soft};
+    QLabel#TagChipLabel {{ color: {p.text}; background: {p.accent_soft};
         border-radius: 10px; padding: 3px 6px; font-size: 13px; }}
-    QLabel#TagSuggestionLabel {{ color: {p.accent}; background: transparent;
+    QLabel#TagSuggestionLabel {{ color: {p.accent}; background: {p.surface};
         border: 1px dashed {p.accent}; border-radius: 10px;
         padding: 3px 6px; font-size: 13px; }}
     QPushButton#TagRemoveButton {{ min-width: 20px; max-width: 20px;
@@ -151,20 +151,20 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
         min-height: 20px; max-height: 20px; padding: 0;
         color: {p.accent}; background: transparent; border: 0;
         font-size: 16px; font-weight: 700; }}
-    QPushButton#TagBadge {{ color: {p.accent}; background: {p.accent_soft};
+    QPushButton#TagBadge {{ color: {p.text}; background: {p.accent_soft};
         border: 0; border-radius: 10px; padding: 3px 8px;
         font-size: 13px; min-height: 24px; }}
-    QPushButton#TagBadge:hover {{ background: {p.surface_hover}; }}
-    QPushButton#TagBadge:pressed {{ background: {p.surface_pressed}; }}
-    QWidget#TagFilterBar {{ background: {p.accent_soft}; border-radius: 8px;
+    QPushButton#TagBadge:hover {{ background: {p.surface_pressed}; }}
+    QPushButton#TagBadge:pressed {{ background: {p.border}; }}
+    QWidget#TagFilterBar {{ background: {p.sidebar_hover}; border-radius: 8px;
         padding: 4px 8px; }}
-    QLabel#TagFilterLabel {{ color: {p.accent}; font-size: 13px; font-weight: 600; }}
+    QLabel#TagFilterLabel {{ font-size: 13px; font-weight: 600; }}
     QPushButton#TagFilterClear {{ min-width: 24px; max-width: 24px;
         min-height: 24px; max-height: 24px; padding: 0;
-        color: {p.accent}; background: transparent; border: 0;
+        color: #EAF0ED; background: transparent; border: 0;
         font-size: 16px; font-weight: 700; }}
     QPushButton#TagFilterClear:hover {{ color: {p.error}; }}
-    QFrame#UsageStatCard {{ background: {p.surface}; border: 1px solid {p.border};
+    QFrame#UsageStatCard {{ background: {p.control}; border: 1px solid {p.border};
         border-radius: {RADIUS["control"]}px; }}
     QLabel#UsageStatValue {{ font-size: 22px; font-weight: 700; color: {p.accent}; }}
     QLabel#UsageAgentTypeLabel {{ font-weight: 600; }}
