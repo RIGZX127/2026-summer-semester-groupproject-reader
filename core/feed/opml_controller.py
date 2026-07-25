@@ -47,14 +47,11 @@ class OPMLController:
             self.__dict__["_cache_feed_store"] = FeedStore(self._db)
         return self.__dict__["_cache_feed_store"]
 
-    async def import_feeds_from_opml(
-        self, path: str, concurrency: int = 5
-    ) -> ImportResult:
+    async def import_feeds_from_opml(self, path: str) -> ImportResult:
         """从 OPML 文件导入订阅源。
 
-        流程：读取文件 → 解析 XML → 并行查重添加 → 返回分类汇总。
-        文件读取在 executor 中执行，避免阻塞事件循环。
-        使用 asyncio.Semaphore 控制并发上限（默认 5）。
+        流程：读取文件 → 解析 XML → 单事务批量查重添加 → 返回分类汇总。
+        所有新增操作在单个 SQLite 事务中完成，避免并行写入的线程竞争。
         """
         loop = asyncio.get_running_loop()
 
@@ -77,27 +74,21 @@ class OPMLController:
         if not feeds:
             raise ValueError("OPML 文件中未找到任何订阅源。")
 
-        # 并行导入（Semaphore 控制并发）
+        # 批量导入（单事务，INSERT OR IGNORE 去重）
+        items = [(f.url, f.title) for f in feeds]
+        try:
+            added = await self._feed_store.add_many(items)
+        except Exception as exc:
+            raise ValueError(f"OPML 导入失败：{exc}") from exc
+
+        # 分类汇总
+        added_urls = {url for _, url, _ in added}
         result = ImportResult()
-        sem = asyncio.Semaphore(concurrency)
-
-        async def _import_one(feed_url: FeedUrl) -> None:
-            async with sem:
-                try:
-                    await self._feed_store.add(feed_url.url, title=feed_url.title)
-                    result.success.append(feed_url)
-                except Exception as exc:
-                    from store.feed_store import DuplicateFeedError
-
-                    if isinstance(exc, DuplicateFeedError):
-                        result.skipped.append(feed_url)
-                    else:
-                        result.failed.append((feed_url, str(exc)))
-
-        await asyncio.gather(
-            *[_import_one(f) for f in feeds],
-            return_exceptions=True,
-        )
+        for feed_url in feeds:
+            if feed_url.url in added_urls:
+                result.success.append(feed_url)
+            else:
+                result.skipped.append(feed_url)
 
         return result
 

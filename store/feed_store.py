@@ -108,9 +108,37 @@ class FeedStore:
 
     # ── 公共 async API ─────────────────────────────────────────────────
 
+    def _sync_add_many(
+        self, items: list[tuple[str, str]]
+    ) -> list[tuple[int, str, str]]:
+        """批量插入订阅源（单事务），跳过重复 URL。
+
+        Returns:
+            [(id, url, title), ...] 仅包含成功新增的条目。
+        """
+        added: list[tuple[int, str, str]] = []
+        with self._conn:
+            for url, title in items:
+                try:
+                    cur = self._conn.execute(
+                        "INSERT INTO feeds (url, title, description) VALUES (?, ?, ?)",
+                        (url, title, ""),
+                    )
+                    added.append((cur.lastrowid, url, title))
+                except sqlite3.IntegrityError:
+                    continue  # 重复 URL，静默跳过
+        return added
+
     async def add(self, url: str, title: str = "", description: str = "") -> FeedRow:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_add, url, title, description)
+
+    async def add_many(
+        self, items: list[tuple[str, str]]
+    ) -> list[tuple[int, str, str]]:
+        """批量添加订阅源（单事务中执行，避免线程竞争）。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_add_many, items)
 
     async def get(self, feed_id: int) -> FeedRow | None:
         loop = asyncio.get_event_loop()
