@@ -232,17 +232,30 @@ class ReaderPipeline:
 
         # ── 1. 检查缓存 ─────────────────────────────────────────────────
         cached = await self._cache.get(entry_id, READER_VERSION, MARKDOWN_VERSION)
-        if cached and cached.markdown:
-            rendered_html = await _run_sync(_render_markdown, cached.markdown)
-            return RenderedContent(
-                entry_id=entry_id,
-                html=rendered_html,
-                title=entry.title,
-                byline="",
-                from_cache=True,
-                markdown=cached.markdown,       # 问题1：透传缓存的 markdown
-                request_id=request_id,
-            )
+        if cached is not None:
+            if cached.markdown:
+                rendered_html = await _run_sync(_render_markdown, cached.markdown)
+                return RenderedContent(
+                    entry_id=entry_id,
+                    html=rendered_html,
+                    title=entry.title,
+                    byline="",
+                    from_cache=True,
+                    markdown=cached.markdown,
+                    request_id=request_id,
+                )
+            else:
+                # 已尝试过抓取但无正文，直接回退摘要，避免重复 15s 超时
+                fallback = _fallback_html(entry.title, entry.summary)
+                return RenderedContent(
+                    entry_id=entry_id,
+                    html=fallback,
+                    title=entry.title,
+                    byline="",
+                    from_cache=True,
+                    markdown="",
+                    request_id=request_id,
+                )
 
         # ── 2. Fetch ─────────────────────────────────────────────────────
         source_html = ""
@@ -265,7 +278,16 @@ class ReaderPipeline:
         if cleaned_html:
             markdown_text = await _run_sync(md_module.html_to_markdown, cleaned_html)
         else:
-            # 提取失败：用 summary 生成简单 HTML，不缓存
+            # 提取失败：缓存空占位，避免后续请求重复触发 15s 抓取超时。
+            await self._cache.save(
+                entry_id=entry_id,
+                source_html="",
+                cleaned_html="",
+                markdown="",  # 空标记表示“已尝试但无正文”
+                reader_version=READER_VERSION,
+                markdown_version=MARKDOWN_VERSION,
+                render_version=RENDER_VERSION,
+            )
             fallback = _fallback_html(title, entry.summary)
             return RenderedContent(
                 entry_id=entry_id,
@@ -273,7 +295,7 @@ class ReaderPipeline:
                 title=title,
                 byline=byline,
                 from_cache=False,
-                markdown="",                    # 回退路径无 markdown
+                markdown="",
                 request_id=request_id,
             )
 
