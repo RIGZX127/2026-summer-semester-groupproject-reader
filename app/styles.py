@@ -65,8 +65,8 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton#SummaryHeader {{ border: 0; background: transparent; text-align: left; font-weight: 650; }}
     QLabel#SummaryStatus {{ color: {p.text_muted}; }}
     QLabel#SummaryPlaceholder {{ color: {p.text_muted}; padding: 12px; }}
-    QLabel#ReaderTags {{ color: {p.text_muted}; background: {p.surface_alt};
-        border-bottom: 1px solid {p.border}; padding: 6px 14px; }}
+    QWidget#TagBar {{ background: {p.surface_alt}; border-bottom: 1px solid {p.border};
+        padding: 6px 10px; }}
     QTextBrowser#SummaryContent {{ color: {p.text}; background: {p.surface}; border: 0; }}
     QWidget#EntryBatchToolbar {{ background: {p.surface_alt}; border: 1px solid {p.border};
         border-radius: {RADIUS["control"]}px; }}
@@ -151,5 +151,10 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
         min-height: 20px; max-height: 20px; padding: 0;
         color: {p.accent}; background: transparent; border: 0;
         font-size: 16px; font-weight: 700; }}
+    QPushButton#TagBadge {{ color: {p.accent}; background: {p.accent_soft};
+        border: 0; border-radius: 10px; padding: 3px 8px;
+        font-size: 13px; min-height: 24px; }}
+    QPushButton#TagBadge:hover {{ background: {p.surface_hover}; }}
+    QPushButton#TagBadge:pressed {{ background: {p.surface_pressed}; }}
     QPushButton#TagAddButton:hover {{ color: {p.accent_hover}; }}
     """

@@ -59,11 +59,10 @@ class ReaderView(QWidget):
         )
         self.toolbar = ReaderToolbar(self.theme_manager.theme)
         self.toolbar.set_theme_preference(self.app_theme_controller.preference)
-        self.tags_label = QLabel()
-        self.tags_label.setObjectName("ReaderTags")
-        self.tags_label.setAccessibleName(self.tr("文章标签"))
-        self.tags_label.setWordWrap(True)
-        self.tags_label.hide()
+        from ui.reader.tag_bar import TagBar
+        self.tag_bar = TagBar(self)
+        self.tag_bar.setAccessibleName(self.tr("文章标签"))
+        self.tag_bar.hide()
         self.summary_panel = SummaryPanel(runtime=agent_runtime, parent=self)
         self.note_editor = NoteEditor(self)
         self.bottom_tabs = QTabWidget(self)
@@ -134,7 +133,7 @@ class ReaderView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.toolbar)
-        layout.addWidget(self.tags_label)
+        layout.addWidget(self.tag_bar)
         self.reader_splitter = QSplitter(Qt.Orientation.Vertical)
         self.reader_splitter.setObjectName("ReaderSummarySplitter")
         self.reader_splitter.setChildrenCollapsible(False)
@@ -195,8 +194,7 @@ class ReaderView(QWidget):
 
     def set_tags(self, tags: list[str]) -> None:
         """Display the current entry tags without owning tag persistence."""
-        self.tags_label.setText("  ·  ".join(tags))
-        self.tags_label.setVisible(bool(tags))
+        self.tag_bar.set_tags(tags)
 
     def show_loading(self) -> None:
         self._auto_summary_timer.stop()

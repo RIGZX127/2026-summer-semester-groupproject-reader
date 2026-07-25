@@ -114,8 +114,8 @@ def test_reader_displays_tags(qtbot) -> None:
     reader = ReaderView()
     qtbot.addWidget(reader)
     reader.set_tags(["Python", "RSS"])
-    assert reader.tags_label.text() == "Python  ·  RSS"
-    assert reader.tags_label.isHidden() is False
+    assert reader.tag_bar.tags() == ["Python", "RSS"]
+    assert reader.tag_bar.isHidden() is False
 
 
 def test_manual_tags_replace_entry_tags(tmp_path, qtbot, monkeypatch) -> None:
@@ -123,4 +123,4 @@ def test_manual_tags_replace_entry_tags(tmp_path, qtbot, monkeypatch) -> None:
     monkeypatch.setattr(window, "_prompt_tag_names", lambda _current: ["Python", "Qt"])
     asyncio.run(window.manage_entry_tags(5))
     assert window._tag_store.saved == [(5, [6, 2])]
-    assert window.reader_view.tags_label.text() == "Python  ·  Qt"
+    assert window.reader_view.tag_bar.tags() == ["Python", "Qt"]
