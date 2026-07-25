@@ -263,6 +263,24 @@ class MercuryApp:
         if state.db is None:
             raise RuntimeError("Database is not initialized")
 
+        # ── i18n ───────────────────────────────────────────────────
+        self._translator = None
+        lang = self._settings.value("ui/language", "")
+        if lang == "en":
+            from PySide6.QtCore import QTranslator
+            import pathlib
+            qm_path = (
+                pathlib.Path(__file__).parent.parent
+                / "resources" / "i18n" / "mercury_en.qm"
+            )
+            if qm_path.exists():
+                translator = QTranslator()
+                translator.load(str(qm_path))
+                app = QApplication.instance()
+                if app is not None:
+                    app.installTranslator(translator)
+                    self._translator = translator
+
         # ── Agent runtime (may be unconfigured) ────────────────────
         runtime, has_llm = _build_agent_runtime(state.db, self._settings)
 
