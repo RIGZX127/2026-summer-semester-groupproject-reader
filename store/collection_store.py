@@ -239,7 +239,7 @@ class CollectionStore:
 
     async def list_all(self) -> list[CollectionRow]:
         return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_list_all
+            None, self._db.guarded, self._sync_list_all
         )
 
     async def update(

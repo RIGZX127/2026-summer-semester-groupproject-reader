@@ -164,12 +164,16 @@ class MainWindow(QMainWindow):
         self.restore_ui_state()
         QTimer.singleShot(0, self._schedule_initial_load)
 
+    async def _initial_load(self) -> None:
+        """Load feeds and collections sequentially to avoid SQLite thread contention."""
+        await self.load_feeds()
+        if self._collection_store is not None:
+            await self.load_collections()
+
     def _schedule_initial_load(self) -> None:
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self.load_feeds())
-            if self._collection_store is not None:
-                loop.create_task(self.load_collections())
+            loop.create_task(self._initial_load())
         except RuntimeError:
             pass
 

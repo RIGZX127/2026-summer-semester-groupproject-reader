@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 
@@ -25,6 +26,7 @@ class DatabaseManager:
 
         self._conn = sqlite3.connect(path, check_same_thread=False, timeout=30)
         self._conn.row_factory = sqlite3.Row
+        self._lock = threading.Lock()
         self._configure()
 
         from store import migrations
@@ -38,6 +40,16 @@ class DatabaseManager:
     @property
     def connection(self) -> sqlite3.Connection:
         return self._conn
+
+    @property
+    def lock(self) -> threading.Lock:
+        """A thread-level lock to serialize concurrent executor access."""
+        return self._lock
+
+    def guarded(self, fn, *args):
+        """Run *fn*(*args*) under the connection lock (for executor dispatch)."""
+        with self._lock:
+            return fn(*args)
 
     def close(self) -> None:
         self._conn.close()

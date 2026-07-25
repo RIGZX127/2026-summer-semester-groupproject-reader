@@ -131,22 +131,30 @@ class FeedStore:
 
     async def add(self, url: str, title: str = "", description: str = "") -> FeedRow:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_add, url, title, description)
+        return await loop.run_in_executor(
+            None, self._db.guarded, self._sync_add, url, title, description
+        )
 
     async def add_many(
         self, items: list[tuple[str, str]]
     ) -> list[tuple[int, str, str]]:
         """批量添加订阅源（单事务中执行，避免线程竞争）。"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_add_many, items)
+        return await loop.run_in_executor(
+            None, self._db.guarded, self._sync_add_many, items
+        )
 
     async def get(self, feed_id: int) -> FeedRow | None:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_get, feed_id)
+        return await loop.run_in_executor(
+            None, self._db.guarded, self._sync_get, feed_id
+        )
 
     async def list_all(self) -> list[FeedRow]:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_list_all)
+        return await loop.run_in_executor(
+            None, self._db.guarded, self._sync_list_all
+        )
 
     async def update(
         self,
@@ -156,12 +164,16 @@ class FeedStore:
         favicon_url: str | None = None,
     ) -> None:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._sync_update, feed_id, title, favicon_url)
+        await loop.run_in_executor(
+            None, self._db.guarded, self._sync_update, feed_id, title, favicon_url
+        )
 
     async def delete(self, feed_id: int) -> None:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._sync_delete, feed_id)
+        await loop.run_in_executor(None, self._db.guarded, self._sync_delete, feed_id)
 
     async def unread_count(self, feed_id: int) -> int:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_unread_count, feed_id)
+        return await loop.run_in_executor(
+            None, self._db.guarded, self._sync_unread_count, feed_id
+        )
