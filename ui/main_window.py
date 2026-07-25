@@ -1100,7 +1100,6 @@ class MainWindow(QMainWindow):
         self._active_tag_filter = None
         self.sidebar.hide_tag_filter()
         loop = asyncio.get_running_loop()
-        state = self.app_state
         if state.selected_feed_id is not None:
             self._selected_entry_id = None
             self.reader_view.note_editor.flush()
