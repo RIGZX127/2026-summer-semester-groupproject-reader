@@ -137,4 +137,19 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton[buttonRole="danger"]:hover {{ background: {p.error_soft}; }}
     QFrame#SummarySeparator {{ color: {p.border}; }}
     QComboBox#SummaryLineHeightCombo {{ min-height: 28px; font-size: 12px; padding: 0 6px; }}
+    QLabel#TagChipLabel {{ color: {p.accent}; background: {p.accent_soft};
+        border-radius: 10px; padding: 3px 6px; font-size: 13px; }}
+    QLabel#TagSuggestionLabel {{ color: {p.accent}; background: transparent;
+        border: 1px dashed {p.accent}; border-radius: 10px;
+        padding: 3px 6px; font-size: 13px; }}
+    QPushButton#TagRemoveButton {{ min-width: 20px; max-width: 20px;
+        min-height: 20px; max-height: 20px; padding: 0;
+        color: {p.text_muted}; background: transparent; border: 0;
+        font-size: 14px; font-weight: 700; }}
+    QPushButton#TagRemoveButton:hover {{ color: {p.error}; }}
+    QPushButton#TagAddButton {{ min-width: 20px; max-width: 20px;
+        min-height: 20px; max-height: 20px; padding: 0;
+        color: {p.accent}; background: transparent; border: 0;
+        font-size: 16px; font-weight: 700; }}
+    QPushButton#TagAddButton:hover {{ color: {p.accent_hover}; }}
     """

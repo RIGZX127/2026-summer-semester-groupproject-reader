@@ -634,24 +634,15 @@ class MainWindow(QMainWindow):
             self.reader_view.set_tags(names)
         return names
 
-    def _prompt_tag_names(self, current: list[str]) -> list[str] | None:
-        value, accepted = QInputDialog.getText(
-            self,
-            self.tr("管理标签"),
-            self.tr("输入标签，用逗号分隔"),
-            text=", ".join(current),
-        )
-        if not accepted:
+    def _prompt_tag_names(
+        self, current: list[str], suggested: list[str] | None = None
+    ) -> list[str] | None:
+        from ui.dialogs.tag_manager_dialog import TagManagerDialog
+
+        dialog = TagManagerDialog(current, suggested, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        names: list[str] = []
-        seen: set[str] = set()
-        for raw_name in value.replace("，", ",").split(","):
-            name = raw_name.strip()
-            normalized = name.casefold()
-            if name and normalized not in seen:
-                names.append(name)
-                seen.add(normalized)
-        return names
+        return dialog.tag_names()
 
     async def manage_entry_tags(
         self, entry_id: int, suggested: list[str] | None = None
@@ -690,7 +681,7 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(self.tr("正在生成标签…"))
 
-    def _on_tagging_state_changed(self, event: object) -> None:
+    async def _on_tagging_state_changed(self, event: object) -> None:
         from core.agent.runtime import AgentUIEvent
 
         evt: AgentUIEvent = event
@@ -720,20 +711,11 @@ class MainWindow(QMainWindow):
         if not suggestions:
             self.statusBar().showMessage(self.tr("AI 未生成可用标签"), 5000)
             return
-        accepted = QMessageBox.question(
-            self,
-            self.tr("确认 AI 标签"),
-            self.tr("是否保存以下标签？\n{0}").format("、".join(suggestions)),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes,
-        )
-        if accepted == QMessageBox.StandardButton.Yes:
-            try:
-                asyncio.get_running_loop().create_task(
-                    self.manage_entry_tags(evt.entry_id, suggestions)
-                )
-            except RuntimeError:
-                self.statusBar().showMessage(self.tr("标签保存任务无法启动"), 5000)
+        # Show tag manager with current tags + AI suggestions
+        current = await self.load_entry_tags(evt.entry_id)
+        names = self._prompt_tag_names(current, suggestions)
+        if names is not None:
+            await self.manage_entry_tags(evt.entry_id, names)
 
     def confirm_delete(self) -> bool:
         result = QMessageBox.question(
@@ -839,6 +821,23 @@ class MainWindow(QMainWindow):
             ),
             8000,
         )
+        if result.failed:
+            detail_lines = []
+            for feed_url, error in result.failed:
+                name = feed_url.title or feed_url.url
+                detail_lines.append(
+                    self.tr("{name}（{url}）：{error}").format(
+                        name=name, url=feed_url.url, error=error
+                    )
+                )
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle(self.tr("OPML 导入 — 失败详情"))
+            msg.setText(
+                self.tr("以下 {0} 个订阅源未能导入：").format(len(result.failed))
+            )
+            msg.setDetailedText("\n\n".join(detail_lines))
+            msg.exec()
 
     async def export_opml_file(self, path: str) -> None:
         if self._opml_controller is None:
