@@ -162,6 +162,8 @@ class MainWindow(QMainWindow):
         self._sync_service.signals.sync_all_done.connect(self._on_sync_all_done)
 
         self.restore_ui_state()
+        # Warm up QWebEngineView to avoid GPU-process crash on first article load
+        self.reader_view.reader_web_view.setHtml("<html><body></body></html>")
         QTimer.singleShot(0, self._schedule_initial_load)
 
     async def _initial_load(self) -> None:
