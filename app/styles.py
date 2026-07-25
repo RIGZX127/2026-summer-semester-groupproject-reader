@@ -164,5 +164,9 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
         color: {p.accent}; background: transparent; border: 0;
         font-size: 16px; font-weight: 700; }}
     QPushButton#TagFilterClear:hover {{ color: {p.error}; }}
+    QFrame#UsageStatCard {{ background: {p.surface}; border: 1px solid {p.border};
+        border-radius: {RADIUS["control"]}px; }}
+    QLabel#UsageStatValue {{ font-size: 22px; font-weight: 700; color: {p.accent}; }}
+    QLabel#UsageAgentTypeLabel {{ font-weight: 600; }}
     QPushButton#TagAddButton:hover {{ color: {p.accent_hover}; }}
     """

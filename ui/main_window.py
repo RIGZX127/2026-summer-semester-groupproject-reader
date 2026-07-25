@@ -57,6 +57,7 @@ class MainWindow(QMainWindow):
         digest_controller: DigestController | None = None,
         opml_controller: OPMLController | None = None,
         collection_store: CollectionStore | None = None,
+        usage_store: object | None = None,
     ) -> None:
         super().__init__()
         self._feed_store = feed_store
@@ -69,6 +70,7 @@ class MainWindow(QMainWindow):
         self._digest_controller = digest_controller
         self._opml_controller = opml_controller
         self._collection_store = collection_store
+        self._usage_store = usage_store
         self._settings = settings or QSettings()
         self._feed_request_id: str | None = None
         self._entry_request_id: str | None = None
@@ -295,12 +297,16 @@ class MainWindow(QMainWindow):
         self.reader_view.show_content(result.html, entry.url, entry.id)
 
     def open_settings_dialog(self) -> None:
-        dialog = SettingsDialog(self._settings, self)
+        dialog = SettingsDialog(self._settings, self, usage_store=self._usage_store)
         self._settings_dialog = dialog
         dialog.provider_panel.test_requested.connect(self._provider_test_slot)
         dialog.provider_panel.configuration_saved.connect(self._on_llm_config_saved)
         dialog.agent_panel.settings_saved.connect(self._on_agent_settings_saved)
         dialog.finished.connect(lambda _result: self._clear_settings_dialog(dialog))
+        if dialog.usage_panel is not None:
+            asyncio.get_running_loop().create_task(
+                self._load_usage_data(dialog.usage_panel)
+            )
         dialog.show()
 
     def _on_llm_config_saved(self) -> None:
@@ -324,6 +330,28 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             self.tr("Agent 设置已保存，摘要和翻译将使用新的偏好。"), 5000
         )
+
+    async def _load_usage_data(self, panel: object) -> None:
+        """Fetch usage stats from UsageStore and populate the panel."""
+        try:
+            from store.usage_store import UsageStore
+
+            store: UsageStore = self._usage_store  # type: ignore[assignment]
+            summary = await store.get_summary()
+            panel.set_summary(
+                summary.total_calls,
+                summary.total_prompt_tokens,
+                summary.total_completion_tokens,
+            )
+
+            grouped = await store.get_by_agent_type()
+            rows = [
+                (g.key, g.calls, g.prompt_tokens, g.completion_tokens)
+                for g in grouped
+            ]
+            panel.set_breakdown(rows)
+        except Exception:
+            pass
 
     def _clear_settings_dialog(self, dialog: SettingsDialog) -> None:
         if self._settings_dialog is dialog:
