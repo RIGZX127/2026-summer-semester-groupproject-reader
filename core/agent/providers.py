@@ -95,8 +95,9 @@ class LLMRouter:
         *,
         temperature: float = 0.7,
         max_tokens: int = 2048,
+        agent_type: str = "unknown",
     ) -> AsyncGenerator[str, None]:
-        """流式 LLM 调用。
+        """流式 LLM 调用。自动记录 token 用量。
 
         Yields:
             每个 chunk 的文本增量（delta.content）。
@@ -121,12 +122,29 @@ class LLMRouter:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
+                stream_options={"include_usage": True},
                 extra_headers=provider.extra_headers or None,
             )
+            usage = None
             async for chunk in stream:
+                if chunk.usage:
+                    usage = chunk.usage
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     yield delta.content
+
+            # ── 记录用量 ──────────────────────────────────────────
+            if usage and self._usage_store is not None:
+                try:
+                    await self._usage_store.record(
+                        provider=provider.name,
+                        model=provider.model,
+                        agent_type=agent_type,
+                        prompt_tokens=usage.prompt_tokens or 0,
+                        completion_tokens=usage.completion_tokens or 0,
+                    )
+                except Exception:
+                    pass
 
             self._primary_failures = 0
             if self._using_fallback:
@@ -142,7 +160,8 @@ class LLMRouter:
                 self._using_fallback = True
                 self._primary_failures = 0
                 async for chunk in self.chat_stream(
-                    messages, temperature=temperature, max_tokens=max_tokens
+                    messages, temperature=temperature, max_tokens=max_tokens,
+                    agent_type=agent_type,
                 ):
                     yield chunk
                 return

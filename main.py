@@ -100,7 +100,11 @@ def main() -> int:
     print("[Mercury] Main window created.", flush=True)
 
     print("[Mercury] Showing window...", flush=True)
+    # 短暂隐藏 → show → 强制渲染 → 再显示，消除 QWebEngineView 白色闪烁
+    window.setWindowOpacity(0)
     window.show()
+    QApplication.processEvents()
+    window.setWindowOpacity(1)
     print("[Mercury] Window shown. Entering event loop.", flush=True)
 
     try:

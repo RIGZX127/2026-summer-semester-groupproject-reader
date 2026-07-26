@@ -113,6 +113,8 @@ def _build_agent_runtime(
         if api_key:
             primary.set_api_key(api_key)
         router = LLMRouter(primary=primary)
+        from store.usage_store import UsageStore
+        router._usage_store = UsageStore(db)
     else:
         # 用一个占位 router——Agent 注册了但调用时会报错
         router = LLMRouter(
@@ -203,6 +205,8 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
     if api_key:
         primary.set_api_key(api_key)
     router = LLMRouter(primary=primary)
+    from store.usage_store import UsageStore
+    router._usage_store = UsageStore(state.db)
 
     # ── 模板加载器 ────────────────────────────────────────────────────
     from app.paths import bundle_path
