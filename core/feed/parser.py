@@ -88,5 +88,5 @@ async def parse_feed(url: str, timeout: float = 15.0) -> FeedData:
     except httpx.RequestError as exc:
         raise FeedParseError(f"Request failed for {url}: {exc}") from exc
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _parse_blocking, url, raw_content)

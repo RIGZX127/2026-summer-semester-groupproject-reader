@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -136,7 +135,7 @@ class OPMLImportDialog(QDialog):
         from core.feed.opml import import_opml
 
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 feeds = import_opml(fh.read())
         except Exception:
             self._list.clear()

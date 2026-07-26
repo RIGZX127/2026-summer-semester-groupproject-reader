@@ -7,7 +7,10 @@
 """
 from __future__ import annotations
 
+import logging
 import re
+
+_logger = logging.getLogger(__name__)
 
 # 需要连同内容一起删除的标签（不只是删标签本身）
 _REMOVE_TAGS = {"script", "style", "nav", "footer", "header", "aside"}
@@ -42,4 +45,5 @@ def html_to_markdown(html: str) -> str:
         result = re.sub(r"\n{3,}", "\n\n", result)
         return result.strip()
     except Exception:  # noqa: BLE001
+        _logger.warning("markdownify 转换失败，回退到空内容", exc_info=True)
         return ""

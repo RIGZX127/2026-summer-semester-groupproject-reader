@@ -21,13 +21,10 @@ def migrate(conn: sqlite3.Connection) -> None:
     ]
     for target_version, fn in migrations:
         if version < target_version:
-            try:
-                with conn:
-                    fn(conn)
-                    conn.execute(f"PRAGMA user_version={target_version}")
-                version = target_version
-            except Exception:
-                raise
+            with conn:
+                fn(conn)
+                conn.execute(f"PRAGMA user_version={target_version}")
+            version = target_version
 
 
 def _migration_v1(conn: sqlite3.Connection) -> None:

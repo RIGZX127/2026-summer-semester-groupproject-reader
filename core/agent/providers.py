@@ -11,32 +11,55 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
 import httpx
-import keyring
 
 SERVICE_NAME = "mercury-llm"
 
 
+def _keyring():
+    """Lazy-import keyring. Returns None if unavailable (e.g. PyInstaller bundle)."""
+    try:
+        import keyring
+        return keyring
+    except ImportError:
+        return None
+
+
 @dataclass
 class ProviderConfig:
-    """单个 LLM 提供者配置。"""
+    """单个 LLM 提供者配置。
 
-    name: str  # 显示名称，如 "Ollama Local"
-    base_url: str  # 如 "http://localhost:11434/v1"
-    model: str  # 如 "qwen3"
-    is_primary: bool = True  # True=主模型, False=回退模型
+    API key 优先从系统 keyring 读取，不可用时降级到内存存储。
+    """
+
+    name: str
+    base_url: str
+    model: str
+    is_primary: bool = True
     extra_headers: dict[str, str] = field(default_factory=dict)
+    _key: str | None = field(default=None, repr=False)
 
     def get_api_key(self) -> str | None:
-        return keyring.get_password(SERVICE_NAME, self.name)
+        kr = _keyring()
+        if kr is not None:
+            stored = kr.get_password(SERVICE_NAME, self.name)
+            if stored:
+                return stored
+        return self._key
 
     def set_api_key(self, key: str) -> None:
-        keyring.set_password(SERVICE_NAME, self.name, key)
+        self._key = key
+        kr = _keyring()
+        if kr is not None:
+            kr.set_password(SERVICE_NAME, self.name, key)
 
     def delete_api_key(self) -> None:
-        try:
-            keyring.delete_password(SERVICE_NAME, self.name)
-        except keyring.errors.PasswordDeleteError:
-            pass
+        self._key = None
+        kr = _keyring()
+        if kr is not None:
+            try:
+                kr.delete_password(SERVICE_NAME, self.name)
+            except Exception:
+                pass
 
 
 class LLMRouterError(Exception):
@@ -82,7 +105,7 @@ class LLMRouter:
             LLMRouterError: 主模型和回退模型均失败。
         """
         provider = self._get_active()
-        api_key = provider.get_api_key() or "local"
+        api_key = provider.get_api_key() or ""
 
         try:
             from openai import AsyncOpenAI
@@ -137,7 +160,7 @@ class LLMRouter:
             (success, model_list, error_message)
         """
         try:
-            api_key = provider.get_api_key() or "local"
+            api_key = provider.get_api_key() or ""
             from openai import AsyncOpenAI
 
             client = AsyncOpenAI(

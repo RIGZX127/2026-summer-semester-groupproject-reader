@@ -13,7 +13,7 @@ on:
         options: [macos, windows, all]
         default: macos
       create_release:
-        description: "Publish to GitHub Releases (public)"
+        description: "Publish to GitHub Releases"
         required: false
         type: boolean
         default: false
@@ -38,7 +38,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install pyinstaller
-          pip install PySide6 httpx feedparser beautifulsoup4 lxml readability-lxml markdownify mistune openai jinja2 qasync keyring
+          pip install -e ".[dev]"
 
       - name: Build macOS .app
         run: |
@@ -50,32 +50,28 @@ jobs:
           DMG="dist/Mercury-macos-${GITHUB_REF_NAME:-snapshot}.dmg"
           mkdir -p dist/dmg
           cp -R "$APP" dist/dmg/
-          cp RELEASE_README.md dist/dmg/使用指南.md
+          cp RELEASE_README.md dist/dmg/使用指南.md 2>/dev/null || true
           ln -s /Applications dist/dmg/Applications
           hdiutil create -volname "Mercury" -srcfolder dist/dmg \
             -ov -format UDZO "$DMG"
           echo "DMG=$DMG" >> $GITHUB_ENV
 
-      - name: Upload artifact (private)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mercury-macos
-          path: |
-            dist/Mercury-macos-*.dmg
-            RELEASE_README.md
+          path: dist/Mercury-macos-*.dmg
 
       - name: Publish GitHub Release
         if: ${{ inputs.create_release || startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/Mercury-macos-*.dmg
-            RELEASE_README.md
+          files: dist/Mercury-macos-*.dmg
           generate_release_notes: true
 
   # ── Windows .exe ──────────────────────────────────────────────────────
   build-windows:
-    if: ${{ inputs.platform == 'windows' || inputs.platform == 'all' }}
+    if: ${{ github.event_name == 'push' || inputs.platform == 'windows' || inputs.platform == 'all' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,14 +85,29 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install pyinstaller
-          pip install PySide6 httpx feedparser beautifulsoup4 lxml readability-lxml markdownify mistune openai jinja2 qasync keyring
+          pip install -e ".[dev]"
 
       - name: Build Windows .exe
         run: |
           pyinstaller mercury.spec
 
-      - name: Upload artifact (private)
+      - name: Create ZIP package
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME:-snapshot}"
+          ZIP="Mercury-windows-${VERSION}.zip"
+          zip -9 -r "${ZIP}" dist/Mercury/
+          echo "ZIP=${ZIP}" >> $GITHUB_ENV
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mercury-windows
-          path: dist/Mercury.exe
+          path: Mercury-windows-*.zip
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.create_release || startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Mercury-windows-*.zip
+          generate_release_notes: true

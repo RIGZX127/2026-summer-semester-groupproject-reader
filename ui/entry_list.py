@@ -321,7 +321,12 @@ class EntryListWidget(QWidget):
 
         has_selection = self.search_edit.hasSelectedText()
         copy_action.setEnabled(has_selection)
-        paste_action.setEnabled(QApplication.clipboard().mimeData().hasText())
+        clipboard = QApplication.clipboard()
+        paste_action.setEnabled(
+            clipboard is not None
+            and clipboard.mimeData() is not None
+            and clipboard.mimeData().hasText()
+        )
         return menu
 
     def _show_search_context_menu(self, position) -> None:
@@ -376,19 +381,27 @@ class EntryListWidget(QWidget):
         export_action = menu.addAction(self.tr("导出 Markdown…"))
         menu.addSeparator()
         delete_action = menu.addAction(self.tr("删除"))
-        read_action.triggered.connect(lambda: self._emit_read_for_item(item, not is_read))
-        star_action.triggered.connect(lambda: self._emit_star_for_item(item))
-        collection_action.triggered.connect(
-            lambda: self._emit_add_to_collection_for_item(item)
+        read_action.triggered.connect(
+            lambda _checked=False, _item=item, _is_read=is_read: self._emit_read_for_item(_item, not _is_read)
         )
-        tags_action.triggered.connect(lambda: self._emit_manage_tags_for_item(item))
+        star_action.triggered.connect(
+            lambda _checked=False, _item=item: self._emit_star_for_item(_item)
+        )
+        collection_action.triggered.connect(
+            lambda _checked=False, _item=item: self._emit_add_to_collection_for_item(_item)
+        )
+        tags_action.triggered.connect(
+            lambda _checked=False, _item=item: self._emit_manage_tags_for_item(_item)
+        )
         ai_tags_action.triggered.connect(
-            lambda: self._emit_generate_tags_for_item(item)
+            lambda _checked=False, _item=item: self._emit_generate_tags_for_item(_item)
         )
         export_action.triggered.connect(
-            lambda: self._emit_export_markdown_for_item(item)
+            lambda _checked=False, _item=item: self._emit_export_markdown_for_item(_item)
         )
-        delete_action.triggered.connect(lambda: self._emit_delete_for_item(item))
+        delete_action.triggered.connect(
+            lambda _checked=False, _item=item: self._emit_delete_for_item(_item)
+        )
         menu.exec(self.entry_list.viewport().mapToGlobal(position))
 
     def _create_batch_context_menu(self) -> QMenu:

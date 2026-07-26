@@ -79,9 +79,13 @@ async def _fetch_article(url: str, entry_id: int) -> str:
                 status_code=status,
             ) from exc
         # 403/429/503 → 可能是 Cloudflare 拦截，降级到 WebEngine
-    except httpx.RequestError:
-        # 网络错误也可能是 Cloudflare 导致的（SSL 指纹等），降级
-        pass
+    except httpx.RequestError as exc:
+        # 明确的网络错误（连接失败、超时等）→ 快速失败
+        # 不降级到 WebEngine，因为这不是 Cloudflare 拦截
+        raise ReaderFetchError(
+            f"Network error for {url}: {exc}",
+            entry_id=entry_id,
+        ) from exc
 
     # 第二级：QWebEngineView（真实浏览器，零配置过 Cloudflare）
     return await _fetch_via_webengine(url)
@@ -112,6 +116,7 @@ async def _fetch_via_webengine(url: str) -> str:
             future.set_exception(
                 RuntimeError(f"QWebEnginePage failed to load: {url}")
             )
+            _cleanup()
             return
         # toHtml 回调拿到渲染后的完整 HTML
         assert page is not None

@@ -13,8 +13,11 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+
+_logger = logging.getLogger(__name__)
 
 _MIN_TEXT_LENGTH = 80   # 纯文本字符数低于此值视为提取失败
 
@@ -149,5 +152,6 @@ def extract(html: str, url: str = "") -> ExtractedContent:
 
         return ExtractedContent(cleaned_html=cleaned, title=title, byline=byline)
     except Exception:  # noqa: BLE001
+        _logger.warning("readability 正文提取失败，回退到摘要", exc_info=True)
         return ExtractedContent("", "", "")
 

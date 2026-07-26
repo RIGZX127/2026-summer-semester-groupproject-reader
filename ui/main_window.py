@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from typing import TYPE_CHECKING
 
@@ -39,6 +40,33 @@ if TYPE_CHECKING:
     from store.feed_store import FeedStore
     from store.note_store import NoteStore
     from store.tag_store import TagStore
+
+_logger = logging.getLogger(__name__)
+
+
+def _safe_create_task(coro) -> None:
+    """Spawn an asyncio Task with automatic exception logging.
+
+    Fire-and-forget tasks that fail silently disconnect the UI from
+    the database state.  This wrapper logs every unhandled exception
+    so the defect is visible in the console / log file.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    task = loop.create_task(coro)
+
+    def _on_done(t: asyncio.Task) -> None:
+        try:
+            t.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            _logger.exception("Unhandled exception in background task")
+
+    task.add_done_callback(_on_done)
 
 
 class MainWindow(QMainWindow):
@@ -162,9 +190,18 @@ class MainWindow(QMainWindow):
         self._sync_service.signals.sync_all_done.connect(self._on_sync_all_done)
 
         self.restore_ui_state()
-        # Warm up QWebEngineView to avoid GPU-process crash on first article load
-        self.reader_view.reader_web_view.setHtml("<html><body></body></html>")
+        # Warm up QWebEngineView to avoid GPU-process crash on first article load.
+        # Wrapped in try/except for PyInstaller safety — if WebEngine resources
+        # aren't available yet, the window still opens and retries on first load.
+        QTimer.singleShot(100, self._warmup_webengine)
         QTimer.singleShot(0, self._schedule_initial_load)
+
+    def _warmup_webengine(self) -> None:
+        """Lazy-warm QWebEngineView after the event loop is running."""
+        try:
+            self.reader_view.reader_web_view.setHtml("<html><body></body></html>")
+        except Exception:
+            _logger.warning("QWebEngineView warmup failed — will retry on first load", exc_info=True)
 
     async def _initial_load(self) -> None:
         """Load feeds and collections sequentially to avoid SQLite thread contention."""
@@ -173,11 +210,7 @@ class MainWindow(QMainWindow):
             await self.load_collections()
 
     def _schedule_initial_load(self) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._initial_load())
-        except RuntimeError:
-            pass
+        _safe_create_task(self._initial_load())
 
     async def load_feeds(self) -> None:
         try:
@@ -313,9 +346,7 @@ class MainWindow(QMainWindow):
         dialog.agent_panel.settings_saved.connect(self._on_agent_settings_saved)
         dialog.finished.connect(lambda _result: self._clear_settings_dialog(dialog))
         if dialog.usage_panel is not None:
-            asyncio.get_running_loop().create_task(
-                self._load_usage_data(dialog.usage_panel)
-            )
+            _safe_create_task(self._load_usage_data(dialog.usage_panel))
         dialog.show()
 
     def _on_llm_config_saved(self) -> None:
@@ -815,6 +846,7 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(self.tr("正在生成标签…"))
 
+    @asyncSlot(object)
     async def _on_tagging_state_changed(self, event: object) -> None:
         from core.agent.runtime import AgentUIEvent
 
@@ -945,7 +977,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, self.tr("导入 OPML"), self.tr("OPML 控制器未初始化。"))
             return
         self.statusBar().showMessage(self.tr("正在导入 OPML…"))
-        items = list(zip(urls, titles))
+        items = list(zip(urls, titles, strict=False))
         try:
             result = await self._opml_controller.import_urls(items)
             await self.load_feeds()
@@ -1155,7 +1187,7 @@ class MainWindow(QMainWindow):
         """Triggered when a tag badge is clicked in the reader."""
         self._active_tag_filter = tag_name
         self.sidebar.show_tag_filter(tag_name)
-        asyncio.get_running_loop().create_task(self._load_tag_filtered())
+        _safe_create_task(self._load_tag_filtered())
 
     def _clear_tag_filter(self) -> None:
         """Clear the active tag filter and restore feed view."""
@@ -1165,8 +1197,7 @@ class MainWindow(QMainWindow):
         self.reader_view.note_editor.flush()
         self.reader_view.note_editor.set_entry(None, "")
         self.reader_view.show_empty()
-        loop = asyncio.get_running_loop()
-        loop.create_task(self.refresh_entries())
+        _safe_create_task(self.refresh_entries())
 
     async def _load_tag_filtered(self) -> None:
         """Load entries filtered by the active tag."""
@@ -1299,10 +1330,7 @@ class MainWindow(QMainWindow):
             if state.selected_feed_id == feed_id:
                 await self.select_feed(feed_id)
 
-        try:
-            asyncio.get_running_loop().create_task(refresh())
-        except RuntimeError:
-            pass
+        _safe_create_task(refresh())
 
     def _on_sync_error(self, feed_id: int, message: str) -> None:
         self.sidebar.set_syncing(feed_id, False)
@@ -1369,4 +1397,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         self.reader_view.note_editor.flush()
         self.save_ui_state()
+        # 显式清理 QWebEngineView，确保 GPU 进程正确终止
+        self.reader_view.reader_web_view.stop()
+        self.reader_view.reader_web_view.deleteLater()
+        self.reader_view.original_web_view.stop()
+        self.reader_view.original_web_view.deleteLater()
         super().closeEvent(event)

@@ -29,10 +29,10 @@ from typing import Any
 
 import jinja2
 
-# ── 内置模板目录（相对于本文件向上两级到仓库根）─────────────────────
-_BUILTIN_TEMPLATE_DIR = (
-    pathlib.Path(__file__).parent.parent.parent / "resources" / "templates"
-)
+from app.paths import bundle_path
+
+# ── 内置模板目录（bundle_path 支持 dev + PyInstaller）─────────────
+_BUILTIN_TEMPLATE_DIR = bundle_path("resources", "templates")
 _USER_TEMPLATE_DIR = pathlib.Path.home() / ".mercury" / "templates"
 
 
@@ -65,9 +65,10 @@ class ExportResult:
 # ── 工具函数 ──────────────────────────────────────────────────────────
 
 def _slugify(text: str, max_len: int = 40) -> str:
-    """将标题转换为 URL 友好的 slug，用于文件名。"""
+    """将标题转换为文件名友好的 slug，保留 CJK 等 Unicode 字符。"""
+    # 仅移除文件名非法字符，保留所有语言的文字
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", text)
     text = text.lower()
-    text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_-]+", "-", text)
     text = text.strip("-")
     return text[:max_len] or "untitled"

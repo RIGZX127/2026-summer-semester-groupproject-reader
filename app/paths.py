@@ -8,6 +8,26 @@ from collections.abc import Mapping
 from pathlib import Path
 
 
+def _project_root() -> Path:
+    """Return the project root directory.
+
+    In dev mode this is the repository root (parent of ``app/``).
+    In PyInstaller-frozen mode this is ``sys._MEIPASS`` (the temp
+    extraction directory).
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent.parent
+
+
+def bundle_path(*parts: str) -> Path:
+    """Resolve a path relative to the project root.
+
+    Works identically in dev mode and PyInstaller-frozen mode.
+    """
+    return _project_root().joinpath(*parts)
+
+
 def user_data_dir(
     *,
     platform_name: str | None = None,

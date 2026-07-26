@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.agent.summary import SummaryAgent, SummaryAgentError
+from core.agent.summary import SummaryAgent
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 

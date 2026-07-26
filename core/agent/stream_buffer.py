@@ -59,4 +59,6 @@ class StreamBuffer:
                 await self._task
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                pass  # flush 回调可能因连接关闭等失败，安全忽略
         await self.flush()

@@ -61,9 +61,9 @@ class OPMLController:
                 None, pathlib.Path(path).read_text, "utf-8"
             )
         except FileNotFoundError:
-            raise ValueError(f"OPML 文件不存在：{path}")
+            raise ValueError(f"OPML 文件不存在：{path}") from None
         except OSError as exc:
-            raise ValueError(f"无法读取 OPML 文件：{exc}")
+            raise ValueError(f"无法读取 OPML 文件：{exc}") from exc
 
         # 解析
         try:

@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-import pathlib
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
@@ -25,11 +24,11 @@ from core.feed.sync import SyncService
 from core.reader.pipeline import ReaderPipeline
 from store.collection_store import CollectionStore
 from store.db import DatabaseManager
-from store.usage_store import UsageStore
 from store.entry_store import EntryStore
 from store.feed_store import FeedStore
 from store.note_store import NoteStore
 from store.tag_store import TagStore
+from store.usage_store import UsageStore
 from ui.main_window import MainWindow
 
 _logger = logging.getLogger(__name__)
@@ -92,7 +91,8 @@ def _build_agent_runtime(
     normalizer = TagNormalizer()
 
     # ── 模板加载器 ──────────────────────────────────────────────────
-    builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
+    from app.paths import bundle_path
+    builtin_dir = str(bundle_path("resources", "prompts"))
     sandbox_dir = str(ensure_user_data_dir() / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
 
@@ -205,7 +205,8 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
     router = LLMRouter(primary=primary)
 
     # ── 模板加载器 ────────────────────────────────────────────────────
-    builtin_dir = str(pathlib.Path(__file__).resolve().parent.parent / "resources" / "prompts")
+    from app.paths import bundle_path
+    builtin_dir = str(bundle_path("resources", "prompts"))
     sandbox_dir = str(ensure_user_data_dir() / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
 
@@ -268,11 +269,9 @@ class MercuryApp:
         lang = self._settings.value("ui/language", "")
         if lang == "en":
             from PySide6.QtCore import QTranslator
-            import pathlib
-            qm_path = (
-                pathlib.Path(__file__).parent.parent
-                / "resources" / "i18n" / "mercury_en.qm"
-            )
+
+            from app.paths import bundle_path
+            qm_path = bundle_path("resources", "i18n", "mercury_en.qm")
             if qm_path.exists():
                 translator = QTranslator()
                 translator.load(str(qm_path))

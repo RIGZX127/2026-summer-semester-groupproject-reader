@@ -35,7 +35,7 @@ try:
         sync_error = QtSignal(int, str)     # feed_id, error_msg
         sync_all_done = QtSignal(int, int)  # total_new, total_failed
 
-except Exception:  # noqa: BLE001
+except ImportError:  # noqa: BLE001
 
     class _CB:  # type: ignore[no-redef]
         """轻量级回调列表，模拟 Qt Signal 的 connect / emit 接口。"""

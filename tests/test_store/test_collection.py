@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+
 from store.collection_store import CollectionStore
 from store.db import DatabaseManager
 

@@ -7,6 +7,7 @@ UI 只需注入一个 Controller 即可完成完整的导出流程。
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,8 @@ from core.digest.exporter import DigestExporter, EntryDigest, ExportResult
 
 if TYPE_CHECKING:
     from store.db import DatabaseManager
+
+_logger = logging.getLogger(__name__)
 
 
 class DigestController:
@@ -87,7 +90,7 @@ class DigestController:
             if cached and cached.markdown:
                 content_markdown = cached.markdown
         except Exception:
-            pass
+            _logger.warning("Digest: 内容缓存查询失败 entry_id=%d", entry_id, exc_info=True)
 
         # 笔记
         notes = ""
@@ -96,7 +99,7 @@ class DigestController:
             if note:
                 notes = note.body
         except Exception:
-            pass
+            _logger.warning("Digest: 笔记查询失败 entry_id=%d", entry_id, exc_info=True)
 
         # 标签
         tags: list[str] = []
@@ -104,7 +107,7 @@ class DigestController:
             entry_tags = await self._tag_store.get_entry_tags(entry_id)
             tags = [et.tag_name for et in entry_tags]
         except Exception:
-            pass
+            _logger.warning("Digest: 标签查询失败 entry_id=%d", entry_id, exc_info=True)
 
         # Feed 标题
         feed_title = ""
@@ -113,7 +116,7 @@ class DigestController:
             if feed:
                 feed_title = feed.title
         except Exception:
-            pass
+            _logger.warning("Digest: Feed 查询失败 feed_id=%d", entry.feed_id, exc_info=True)
 
         return EntryDigest(
             entry_id=entry.id,
