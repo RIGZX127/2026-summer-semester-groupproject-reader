@@ -92,12 +92,13 @@ jobs:
           pyinstaller mercury.spec
 
       - name: Create ZIP package
-        shell: bash
+        shell: pwsh
         run: |
-          VERSION="${GITHUB_REF_NAME:-snapshot}"
-          ZIP="Mercury-windows-${VERSION}.zip"
-          zip -9 -r "${ZIP}" dist/Mercury/
-          echo "ZIP=${ZIP}" >> $GITHUB_ENV
+          $VERSION = "${{ github.ref_name }}" -replace '^v', ''
+          if (-not $VERSION) { $VERSION = "snapshot" }
+          $ZIP = "Mercury-windows-v${VERSION}.zip"
+          Compress-Archive -Path dist\Mercury\* -DestinationPath $ZIP
+          echo "ZIP=$ZIP" >> $env:GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
