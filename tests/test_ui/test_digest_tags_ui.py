@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings
 from core.digest.exporter import DigestExporter, EntryDigest
 from core.feed.sync import SyncSignals
 from store.entry_store import EntryListItem
+from ui.dialogs.tag_manager_dialog import TagManagerDialog
 from ui.entry_list import EntryListWidget
 from ui.main_window import MainWindow
 from ui.reader.reader_view import ReaderView
@@ -209,7 +210,26 @@ def test_reader_displays_tags(qtbot) -> None:
 
 def test_manual_tags_replace_entry_tags(tmp_path, qtbot, monkeypatch) -> None:
     window = _window(tmp_path, qtbot)
-    monkeypatch.setattr(window, "_prompt_tag_names", lambda _current: ["Python", "Qt"])
+    monkeypatch.setattr(
+        window,
+        "_prompt_tag_names",
+        lambda _current, suggested=None, entry_id=None: ["Python", "Qt"],
+    )
     asyncio.run(window.manage_entry_tags(5))
     assert window._tag_store.saved == [(5, [6, 2])]
     assert window.reader_view.tag_bar.tags() == ["Python", "Qt"]
+
+
+def test_tag_manager_generates_ai_suggestions_in_place(qtbot) -> None:
+    dialog = TagManagerDialog(["Python"])
+    qtbot.addWidget(dialog)
+
+    assert dialog.ai_button.accessibleName() == "AI 生成标签"
+    with qtbot.waitSignal(dialog.ai_tags_requested, timeout=500):
+        dialog.ai_button.click()
+    assert dialog.ai_button.isEnabled() is False
+
+    dialog.set_ai_state("done", ["Qt", "Python"])
+    assert dialog.ai_button.isEnabled() is True
+    assert "Qt" in dialog.suggested_tag_names()
+    assert dialog.tag_names() == ["Python"]

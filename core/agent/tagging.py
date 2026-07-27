@@ -158,7 +158,6 @@ class TagAgent:
             ],
             temperature=tpl.config.get("temperature", 0.5),
             max_tokens=tpl.config.get("max_tokens", 256),
-            agent_type="tagging",
         ):
             parts.append(chunk)
             # 广播流式 chunk（TagAgent 也支持流式）

@@ -115,7 +115,7 @@ def test_toolbar_icon_controls_share_one_size(qtbot) -> None:
         toolbar.focus_button,
     )
     assert all(control.size() == QSize(36, 36) for control in controls)
-    assert all(control.iconSize() == QSize(18, 18) for control in controls)
+    assert all(control.iconSize() == QSize(20, 20) for control in controls)
 
 
 def test_toolbar_icon_hover_shows_name_immediately(qtbot) -> None:

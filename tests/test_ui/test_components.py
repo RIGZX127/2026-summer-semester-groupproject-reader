@@ -241,3 +241,40 @@ def test_reader_starts_with_instruction_and_escapes_entry(qtbot) -> None:
     view.show_entry(entry)
     assert "&lt;script&gt;" in view.last_html
     assert "<script>" not in view.last_html
+
+
+def test_collection_add_uses_sidebar_icon_button_style(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+
+    assert sidebar.collections.add_button.objectName() == "SidebarActionButton"
+
+
+def test_clicking_selected_feed_again_clears_selection(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+    sidebar.set_feeds([(_feed(), 1)])
+    sidebar.show()
+    item = sidebar.feed_list.item(0)
+    point = sidebar.feed_list.visualItemRect(item).center()
+
+    qtbot.mouseClick(sidebar.feed_list.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    with qtbot.waitSignal(sidebar.feed_cleared, timeout=500):
+        qtbot.mouseClick(sidebar.feed_list.viewport(), Qt.MouseButton.LeftButton, pos=point)
+
+    assert sidebar.feed_list.currentItem() is None
+
+
+def test_clicking_selected_article_again_clears_selection(qtbot) -> None:
+    view = EntryListWidget()
+    qtbot.addWidget(view)
+    view.set_entries([_entry()])
+    view.show()
+    item = view.entry_list.item(0)
+    point = view.entry_list.visualItemRect(item).center()
+
+    qtbot.mouseClick(view.entry_list.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    with qtbot.waitSignal(view.entry_cleared, timeout=500):
+        qtbot.mouseClick(view.entry_list.viewport(), Qt.MouseButton.LeftButton, pos=point)
+
+    assert view.entry_list.currentItem() is None

@@ -27,7 +27,7 @@ def mock_router() -> MagicMock:
     router.active_provider_name = "test-provider"
     router.active_model_name = "test-model"
 
-    async def mock_stream(messages, temperature=0.5, max_tokens=256, **kwargs):
+    async def mock_stream(messages, temperature=0.5, max_tokens=256):
         yield '["machine learning", "AI", "testing"]'
 
     router.chat_stream = mock_stream
@@ -147,7 +147,7 @@ async def test_suggest_uses_existing_tags_fn(
     # Replace router to return different tags on second call
     call_count = 0
 
-    async def mock_stream(messages, temperature=0.5, max_tokens=256, **kwargs):
+    async def mock_stream(messages, temperature=0.5, max_tokens=256):
         nonlocal call_count
         call_count += 1
         yield '["new tag"]'

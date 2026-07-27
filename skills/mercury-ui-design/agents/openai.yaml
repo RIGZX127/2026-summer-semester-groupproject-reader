@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mercury UI Design"
+  short_description: "严格保持 Mercury 浅深色主题、控件与阅读体验一致"
+  default_prompt: "Use $mercury-ui-design to design and implement this Mercury UI feature consistently."

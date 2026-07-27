@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSignalBlocker, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPalette, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -84,6 +84,7 @@ class WrappingListWidget(QListWidget):
 
 class EntryListWidget(QWidget):
     entry_selected = Signal(int)
+    entry_cleared = Signal()
     retry_requested = Signal()
     search_requested = Signal(str)
     search_scope_changed = Signal(str)
@@ -166,6 +167,7 @@ class EntryListWidget(QWidget):
         self.entry_list.setUniformItemSizes(False)
         self.entry_list.setItemDelegate(WrappingItemDelegate(self.entry_list))
         self.entry_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.entry_list.viewport().installEventFilter(self)
         self.stack.addWidget(self.entry_list)
 
         self._state_pages: dict[str, QWidget] = {}
@@ -279,6 +281,23 @@ class EntryListWidget(QWidget):
         item = self.entry_list.currentItem()
         return int(item.data(Qt.ItemDataRole.UserRole)) if item is not None else None
 
+    def clear_entry_selection(self) -> None:
+        self.entry_list.setCurrentItem(None)
+        self.entry_list.clearSelection()
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
+        if (
+            watched is self.entry_list.viewport()
+            and event.type() == QEvent.Type.MouseButtonPress
+            and not self._batch_mode
+        ):
+            item = self.entry_list.itemAt(event.position().toPoint())
+            if item is self.entry_list.currentItem() and item is not None and item.isSelected():
+                self.clear_entry_selection()
+                self.entry_cleared.emit()
+                return True
+        return super().eventFilter(watched, event)
+
     def selected_entry_ids(self) -> list[int]:
         return [
             int(item.data(Qt.ItemDataRole.UserRole)) for item in self.entry_list.selectedItems()
@@ -372,7 +391,6 @@ class EntryListWidget(QWidget):
         star_action = menu.addAction(self.tr("取消收藏") if is_starred else self.tr("收藏"))
         collection_action = menu.addAction(self.tr("添加到收藏夹…"))
         tags_action = menu.addAction(self.tr("管理标签…"))
-        ai_tags_action = menu.addAction(self.tr("AI 生成标签"))
         export_action = menu.addAction(self.tr("导出 Markdown…"))
         menu.addSeparator()
         delete_action = menu.addAction(self.tr("删除"))
@@ -389,9 +407,6 @@ class EntryListWidget(QWidget):
         )
         tags_action.triggered.connect(
             lambda _checked=False, _item=item: self._emit_manage_tags_for_item(_item)
-        )
-        ai_tags_action.triggered.connect(
-            lambda _checked=False, _item=item: self._emit_generate_tags_for_item(_item)
         )
         export_action.triggered.connect(
             lambda _checked=False, _item=item: self._emit_export_markdown_for_item(_item)

@@ -54,6 +54,7 @@ def _safe_create_task(coro) -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        coro.close()
         return
 
     task = loop.create_task(coro)
@@ -111,6 +112,12 @@ class MainWindow(QMainWindow):
         self._active_tag_filter: str | None = None
         self._active_tagging_run_id: str | None = None
         self._tagging_entry_id: int | None = None
+        self._tag_dialog = None
+        self._pending_read_entry_id: int | None = None
+        self._pending_read_request_id: str | None = None
+        self._read_timer = QTimer(self)
+        self._read_timer.setSingleShot(True)
+        self._read_timer.timeout.connect(self._on_read_timer_timeout)
 
         self.setWindowTitle(self.tr("ChenXing"))
         self.setMinimumSize(1024, 640)
@@ -131,6 +138,7 @@ class MainWindow(QMainWindow):
 
         self.sidebar.add_feed_requested.connect(self.open_add_feed_dialog)
         self.sidebar.feed_selected.connect(self._select_feed_slot)
+        self.sidebar.feed_cleared.connect(self._clear_source_selection)
         self.sidebar.sync_requested.connect(self._sync_feed_slot)
         self.sidebar.sync_all_requested.connect(self._sync_all_slot)
         self.sidebar.feed_rename_requested.connect(self._rename_feed_slot)
@@ -141,6 +149,7 @@ class MainWindow(QMainWindow):
         self.sidebar.export_opml_requested.connect(self._export_opml_slot)
         self.sidebar.collapse_requested.connect(self._hide_sidebar)
         self.entry_list.entry_selected.connect(self._select_entry_slot)
+        self.entry_list.entry_cleared.connect(self._clear_entry_selection)
         self.entry_list.retry_requested.connect(self._retry_entries)
         self.entry_list.search_requested.connect(self._search_entries_slot)
         self.entry_list.search_scope_changed.connect(self._search_scope_slot)
@@ -161,6 +170,7 @@ class MainWindow(QMainWindow):
         self.sidebar.tag_filter_cleared.connect(self._clear_tag_filter)
         self.reader_view.note_editor.save_requested.connect(self._save_note_slot)
         self.sidebar.collections.collection_selected.connect(self._select_collection_slot)
+        self.sidebar.collections.collection_cleared.connect(self._clear_source_selection)
         self.sidebar.collections.create_requested.connect(self._create_collection_slot)
         self.sidebar.collections.rename_requested.connect(self._rename_collection_slot)
         self.sidebar.collections.delete_requested.connect(self._delete_collection_slot)
@@ -249,6 +259,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("订阅添加成功"), 4000)
 
     async def select_feed(self, feed_id: int) -> None:
+        self.sidebar.collections.clear_selection()
         # If the same feed is already selected, skip resetting the reader.
         if state.selected_feed_id == feed_id:
             return
@@ -275,6 +286,7 @@ class MainWindow(QMainWindow):
         self.reader_view.show_empty()
 
     async def select_entry(self, entry_id: int) -> None:
+        self._cancel_pending_read()
         if self._selected_entry_id != entry_id:
             self.reader_view.note_editor.flush()
         request_id = str(uuid.uuid4())
@@ -297,9 +309,11 @@ class MainWindow(QMainWindow):
         await self.load_note(entry_id, request_id)
         try:
             if not entry.is_read:
-                await self._entry_store.mark_read(entry_id)
-                await self.refresh_entries()
-                await self.load_feeds()
+                delay_seconds = int(self._settings.value("reading/mark_read_delay_seconds", 0))
+                if delay_seconds <= 0:
+                    await self._mark_entry_read_if_current(entry_id, request_id)
+                else:
+                    self._schedule_mark_read(entry_id, request_id, delay_seconds)
             if self._reader_pipeline is None:
                 self.reader_view.show_entry(entry)
                 return
@@ -457,6 +471,30 @@ class MainWindow(QMainWindow):
         elif state.selected_feed_id is not None:
             await self.select_feed(state.selected_feed_id)
 
+    def _schedule_mark_read(self, entry_id: int, request_id: str, delay_seconds: int) -> None:
+        self._pending_read_entry_id = entry_id
+        self._pending_read_request_id = request_id
+        self._read_timer.start(max(0, delay_seconds) * 1000)
+
+    def _cancel_pending_read(self) -> None:
+        self._read_timer.stop()
+        self._pending_read_entry_id = None
+        self._pending_read_request_id = None
+
+    def _on_read_timer_timeout(self) -> None:
+        entry_id = self._pending_read_entry_id
+        request_id = self._pending_read_request_id
+        self._cancel_pending_read()
+        if entry_id is not None and request_id is not None:
+            _safe_create_task(self._mark_entry_read_if_current(entry_id, request_id))
+
+    async def _mark_entry_read_if_current(self, entry_id: int, request_id: str) -> None:
+        if self._selected_entry_id != entry_id or self._entry_request_id != request_id:
+            return
+        await self._entry_store.mark_read(entry_id)
+        await self.refresh_entries()
+        await self.load_feeds()
+
     async def mark_entry_read(self, entry_id: int, read: bool) -> None:
         try:
             if read:
@@ -497,6 +535,7 @@ class MainWindow(QMainWindow):
     async def select_collection(self, collection_id: int) -> None:
         if self._collection_store is None:
             return
+        self.sidebar.clear_feed_selection()
         state.selected_feed_id = None
         self._selected_entry_id = None
         self.reader_view.note_editor.flush()
@@ -758,12 +797,21 @@ class MainWindow(QMainWindow):
         return names
 
     def _prompt_tag_names(
-        self, current: list[str], suggested: list[str] | None = None
+        self,
+        current: list[str],
+        suggested: list[str] | None = None,
+        entry_id: int | None = None,
     ) -> list[str] | None:
         from ui.dialogs.tag_manager_dialog import TagManagerDialog
 
         dialog = TagManagerDialog(current, suggested, parent=self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        self._tag_dialog = dialog
+        if entry_id is not None:
+            dialog.ai_tags_requested.connect(lambda: self.generate_entry_tags(entry_id))
+        result = dialog.exec()
+        if self._tag_dialog is dialog:
+            self._tag_dialog = None
+        if result != QDialog.DialogCode.Accepted:
             return None
         return dialog.tag_names()
 
@@ -771,7 +819,11 @@ class MainWindow(QMainWindow):
         if self._tag_store is None:
             return
         current = await self.load_entry_tags(entry_id)
-        names = suggested if suggested is not None else self._prompt_tag_names(current)
+        names = (
+            suggested
+            if suggested is not None
+            else self._prompt_tag_names(current, entry_id=entry_id)
+        )
         if names is None:
             return
         try:
@@ -786,14 +838,20 @@ class MainWindow(QMainWindow):
 
     def generate_entry_tags(self, entry_id: int) -> None:
         if self._agent_runtime is None:
+            if self._tag_dialog is not None:
+                self._tag_dialog.set_ai_state("error", error=self.tr("请先配置 LLM"))
             self.reader_view.notify_ai_unconfigured("tagging")
             return
         try:
             self._tagging_entry_id = entry_id
             self._active_tagging_run_id = self._agent_runtime.submit(entry_id, "tagging")
         except Exception as exc:  # noqa: BLE001
+            if self._tag_dialog is not None:
+                self._tag_dialog.set_ai_state("error", error=str(exc))
             self.statusBar().showMessage(self.tr("AI 标签任务启动失败：{0}").format(str(exc)), 6000)
             return
+        if self._tag_dialog is not None:
+            self._tag_dialog.set_ai_state("running")
         self.statusBar().showMessage(self.tr("正在生成标签…"))
 
     @asyncSlot(object)
@@ -808,6 +866,8 @@ class MainWindow(QMainWindow):
         ):
             return
         if evt.status == "error":
+            if self._tag_dialog is not None:
+                self._tag_dialog.set_ai_state("error", error=evt.error)
             self.statusBar().showMessage(
                 self.tr("AI 标签生成失败：{0}").format(evt.error or self.tr("未知错误")),
                 6000,
@@ -823,13 +883,12 @@ class MainWindow(QMainWindow):
         except (json.JSONDecodeError, TypeError, AttributeError):
             suggestions = []
         if not suggestions:
+            if self._tag_dialog is not None:
+                self._tag_dialog.set_ai_state("done", [])
             self.statusBar().showMessage(self.tr("AI 未生成可用标签"), 5000)
             return
-        # Show tag manager with current tags + AI suggestions
-        current = await self.load_entry_tags(evt.entry_id)
-        names = self._prompt_tag_names(current, suggestions)
-        if names is not None:
-            await self.manage_entry_tags(evt.entry_id, names)
+        if self._tag_dialog is not None and self._tagging_entry_id == evt.entry_id:
+            self._tag_dialog.set_ai_state("done", suggestions)
 
     def confirm_delete(self) -> bool:
         result = QMessageBox.question(
@@ -1076,6 +1135,21 @@ class MainWindow(QMainWindow):
     @asyncSlot(int)
     async def _select_entry_slot(self, entry_id: int) -> None:
         await self.select_entry(entry_id)
+
+    def _clear_entry_selection(self) -> None:
+        self._cancel_pending_read()
+        self._selected_entry_id = None
+        self._entry_request_id = None
+        self.reader_view.note_editor.flush()
+        self.reader_view.note_editor.set_entry(None, "")
+        self.reader_view.show_empty()
+
+    def _clear_source_selection(self) -> None:
+        state.selected_feed_id = None
+        self._feed_request_id = None
+        self._clear_entry_selection()
+        self.entry_list.set_entries([])
+        self.entry_list.set_state("disabled", self.tr("请选择订阅源或收藏夹。"))
 
     @asyncSlot(int)
     async def _sync_feed_slot(self, feed_id: int) -> None:

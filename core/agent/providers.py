@@ -86,10 +86,6 @@ class LLMRouter:
         self._using_fallback = False
         self._usage_store = None  # 由调用方在初始化后注入
 
-    def set_usage_store(self, store) -> None:
-        """注入 UsageStore 实例，用于记录 LLM 调用用量。"""
-        self._usage_store = store
-
     def _get_active(self) -> ProviderConfig:
         if self._using_fallback and self._fallback:
             return self._fallback
@@ -101,16 +97,8 @@ class LLMRouter:
         *,
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        agent_type: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """流式 LLM 调用。
-
-        Args:
-            messages: 对话消息列表。
-            temperature: 采样温度。
-            max_tokens: 最大输出 token 数。
-            agent_type: Agent 类型标识（如 "summary", "translation", "tagging"），
-                       用于用量统计记录。
 
         Yields:
             每个 chunk 的文本增量（delta.content）。
@@ -120,7 +108,6 @@ class LLMRouter:
         """
         provider = self._get_active()
         api_key = provider.get_api_key() or ""
-        full_text_parts: list[str] = []
 
         try:
             from openai import AsyncOpenAI
@@ -141,18 +128,11 @@ class LLMRouter:
             async for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
-                    full_text_parts.append(delta.content)
                     yield delta.content
 
             self._primary_failures = 0
             if self._using_fallback:
                 self._using_fallback = False
-
-            # ── 记录用量（仅成功路径；fallback 递归调用各自记录）───
-            await self._record_usage(
-                messages, "".join(full_text_parts),
-                provider.name, provider.model, agent_type,
-            )
 
         except Exception as exc:
             self._primary_failures += 1
@@ -160,10 +140,7 @@ class LLMRouter:
                 self._using_fallback = True
                 self._primary_failures = 0
                 async for chunk in self.chat_stream(
-                    messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    agent_type=agent_type,
+                    messages, temperature=temperature, max_tokens=max_tokens
                 ):
                     yield chunk
                 return
@@ -200,29 +177,3 @@ class LLMRouter:
     @property
     def active_model_name(self) -> str:
         return self._get_active().model
-
-    async def _record_usage(
-        self,
-        messages: list[dict[str, str]],
-        full_text: str,
-        provider_name: str,
-        model_name: str,
-        agent_type: str | None,
-    ) -> None:
-        """记录单次 LLM 调用用量到 UsageStore。"""
-        if self._usage_store is None or agent_type is None:
-            return
-        try:
-            # 字符数 ÷ 3 估算 token（混合中英文，跨 provider 通用）
-            prompt_chars = sum(len(m.get("content", "")) for m in messages)
-            prompt_tokens = max(1, prompt_chars // 3)
-            completion_tokens = max(1, len(full_text) // 3)
-            await self._usage_store.record(
-                provider=provider_name,
-                model=model_name,
-                agent_type=agent_type,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-            )
-        except Exception:
-            pass  # 用量记录失败不影响核心流程

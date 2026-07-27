@@ -8,7 +8,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygonF
 
 COMPACT_CONTROL_SIZE = 36
-COMPACT_ICON_SIZE = 18
+COMPACT_ICON_SIZE = 20
 
 
 def _canvas(color: str) -> tuple[QPixmap, QPainter]:

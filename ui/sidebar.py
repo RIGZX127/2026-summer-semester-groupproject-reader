@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
@@ -42,6 +42,7 @@ class Sidebar(QWidget):
     """Display feeds and emit navigation intentions."""
 
     feed_selected = Signal(int)
+    feed_cleared = Signal()
     add_feed_requested = Signal()
     sync_requested = Signal(int)
     sync_all_requested = Signal()
@@ -162,6 +163,7 @@ class Sidebar(QWidget):
         self.feed_list.setResizeMode(QListView.ResizeMode.Adjust)
         self.feed_list.setUniformItemSizes(False)
         self.feed_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.feed_list.viewport().installEventFilter(self)
 
         self.feed_menu = QMenu(self)
         self.feed_rename_action = self.feed_menu.addAction(self.tr("重命名订阅"))
@@ -253,6 +255,19 @@ class Sidebar(QWidget):
     def current_feed_id(self) -> int | None:
         item = self.feed_list.currentItem()
         return int(item.data(Qt.ItemDataRole.UserRole)) if item is not None else None
+
+    def clear_feed_selection(self) -> None:
+        self.feed_list.setCurrentItem(None)
+        self.feed_list.clearSelection()
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
+        if watched is self.feed_list.viewport() and event.type() == QEvent.Type.MouseButtonPress:
+            item = self.feed_list.itemAt(event.position().toPoint())
+            if item is self.feed_list.currentItem() and item is not None and item.isSelected():
+                self.clear_feed_selection()
+                self.feed_cleared.emit()
+                return True
+        return super().eventFilter(watched, event)
 
     def set_syncing(self, feed_id: int, syncing: bool) -> None:
         item = self._item_for_feed(feed_id)

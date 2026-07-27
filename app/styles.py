@@ -44,7 +44,7 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QWidget#Sidebar QListWidget::item:selected {{ background: {p.sidebar_selected}; color: white; }}
     QWidget#ReaderToolbar {{ background: {p.surface_alt}; border-bottom: 1px solid {p.border}; }}
     QWidget#ReaderToolbar QLabel {{ color: {p.text_muted}; font-weight: 600; }}
-    QPushButton {{ min-height: 36px; padding: 0 13px; border: 1px solid {p.border};
+    QPushButton {{ min-height: 36px; padding: 0 10px; border: 1px solid {p.border};
         border-radius: {RADIUS["control"]}px; background: {p.control}; }}
     QPushButton:hover {{ background: {p.surface_hover}; border-color: {p.border_strong}; }}
     QPushButton:pressed {{ background: {p.surface_pressed}; padding-top: 1px; }}
@@ -56,16 +56,17 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton#DangerButton:hover {{ color: {p.error}; background: {p.error_soft}; border-color: {p.error}; }}
     QWidget#ReaderToolbar QPushButton {{ min-width: 36px; max-width: 36px;
         min-height: 36px; max-height: 36px; padding: 0; color: {p.text_muted};
-        background: transparent; border-color: transparent; }}
+        margin: 2px; background: transparent; border-color: transparent; }}
     QWidget#ReaderToolbar QPushButton:hover {{ color: {p.text}; background: {p.surface_hover}; }}
     QWidget#ReaderToolbar QPushButton:checked {{ color: {p.text_on_accent}; background: {p.accent}; border-color: {p.accent}; }}
-    QWidget#ReaderToolbar QPushButton#FocusModeButton {{ padding: 0; background: {p.control};
-        border: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QPushButton#FocusModeButton {{ padding: 0; background: transparent;
+        border: 1px solid transparent; }}
     QWidget#ReaderToolbar QPushButton#FocusModeButton:checked {{ color: {p.text_on_accent}; background: {p.accent}; }}
-    QWidget#ReaderToolbar QPushButton#SidebarRestoreButton {{ padding: 0; border: 1px solid {p.border}; }}
-    QWidget#ReaderToolbar QPushButton#TranslateButton {{ padding: 0; border: 1px solid {p.border}; }}
+    QWidget#ReaderToolbar QPushButton#SidebarRestoreButton,
+    QWidget#ReaderToolbar QPushButton#TranslateButton {{ padding: 0;
+        background: transparent; border: 1px solid transparent; }}
     QWidget#ReaderToolbar QComboBox, QWidget#ReaderToolbar QSpinBox {{ min-height: 32px;
-        padding: 0 6px; }}
+        margin: 2px; padding: 0 6px; }}
     QSplitter#ReaderSummarySplitter::handle {{ height: 7px; background: {p.border}; }}
     QSplitter#ReaderSummarySplitter::handle:hover {{ background: {p.accent}; }}
     QFrame#SummaryPanel {{ background: {p.surface}; border-top: 1px solid {p.border}; }}
@@ -80,10 +81,17 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
         border-radius: {RADIUS["control"]}px; }}
     QLabel#BatchCountLabel {{ color: {p.text_muted}; font-weight: 600; }}
     QPushButton#EntryHeaderIconButton, QPushButton#BatchActionButton {{ min-width: 36px; max-width: 36px;
-        min-height: 36px; max-height: 36px; padding: 0; }}
+        min-height: 36px; max-height: 36px; padding: 0; background: transparent;
+        border-color: transparent; }}
+    QPushButton#EntryHeaderIconButton:hover, QPushButton#BatchActionButton:hover {{
+        background: {p.surface_hover}; border-color: {p.border_strong}; }}
     QGroupBox {{ margin-top: 12px; padding-top: 14px; border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; font-weight: 650; }}
     QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 4px; }}
     QTabWidget::pane {{ border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; background: {p.surface}; }}
+    QTabBar::tab {{ color: {p.text_muted}; background: {p.surface_alt};
+        border: 1px solid {p.border}; padding: 7px 12px; }}
+    QTabBar::tab:selected {{ color: {p.text}; background: {p.surface}; font-weight: 650; }}
+    QTabBar::tab:hover:!selected {{ color: {p.text}; background: {p.surface_hover}; }}
     QTabWidget#ReaderBottomTabs QTabBar::tab {{ color: {p.text_muted};
         background: {p.surface_alt}; border: 1px solid {p.border}; border-bottom: 0;
         padding: 7px 14px; margin-right: 2px; }}
@@ -111,7 +119,7 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QWidget#Sidebar QPushButton#SidebarCollapseButton:hover {{ background: {p.sidebar_hover}; border-color: {p.sidebar_selected}; }}
     QWidget#Sidebar QPushButton#SidebarActionButton {{ min-width: 36px; max-width: 36px;
         min-height: 36px; max-height: 36px; padding: 0; background: transparent;
-        border-color: {p.sidebar_selected}; }}
+        border-color: transparent; }}
     QWidget#Sidebar QPushButton#SidebarActionButton:hover {{ background: {p.sidebar_hover};
         border-color: #8CA29A; }}
     QLineEdit, QComboBox, QSpinBox {{ min-height: 36px; padding: 0 10px; color: {p.text};
@@ -126,8 +134,8 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QComboBox[readerControl="true"] QAbstractItemView {{ color: {p.text}; background: {p.control};
         selection-color: {p.text_on_accent}; selection-background-color: {p.accent}; border: 1px solid {p.border}; outline: 0; }}
     QWidget#ReaderToolbar QPushButton#ReaderPopupButton {{ min-width: 36px; max-width: 36px;
-        min-height: 36px; max-height: 36px; padding: 0; background: {p.control};
-        border: 1px solid {p.border}; }}
+        min-height: 36px; max-height: 36px; padding: 0; background: transparent;
+        border: 1px solid transparent; }}
     QWidget#ReaderToolbar QPushButton#ReaderPopupButton:hover {{ background: {p.surface_hover};
         border-color: {p.border_strong}; }}
     QWidget#ReaderToolbar QPushButton#ReaderPopupButton:focus {{ background: {p.surface};
@@ -155,6 +163,14 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QLabel#TagSuggestionLabel {{ color: {p.accent}; background: {p.surface};
         border: 1px dashed {p.accent}; border-radius: 10px;
         padding: 3px 6px; font-size: 13px; }}
+    QScrollArea#TagChipScrollArea, QScrollArea#TagChipScrollArea > QWidget > QWidget,
+    QWidget#TagChipContainer {{ background: {p.surface}; }}
+    QPushButton#TagAIButton {{ color: {LIGHT_PALETTE.text}; background: transparent;
+        border-color: transparent; margin: 2px; padding: 0; }}
+    QPushButton#TagAIButton:hover {{ background: {LIGHT_PALETTE.surface_hover};
+        border-color: {LIGHT_PALETTE.border_strong}; }}
+    QPushButton#TagAIButton:pressed {{ background: {LIGHT_PALETTE.surface_pressed};
+        border-color: {LIGHT_PALETTE.border_strong}; }}
     QPushButton#TagRemoveButton {{ min-width: 36px; max-width: 36px;
         min-height: 36px; max-height: 36px; padding: 0;
         color: {p.text_muted}; background: transparent; border: 0;

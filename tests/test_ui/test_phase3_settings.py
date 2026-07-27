@@ -66,9 +66,11 @@ def test_general_panel_persists_language_and_shows_restart_feedback(tmp_path, qt
     qtbot.addWidget(panel)
 
     panel.language_combo.setCurrentIndex(panel.language_combo.findData("en"))
+    panel.mark_read_delay.setValue(37)
     panel.save()
 
     assert settings.value("ui/language") == "en"
+    assert settings.value("reading/mark_read_delay_seconds", type=int) == 37
     assert panel.status_label.text() == "语言设置已保存，重启应用后生效"
 
 

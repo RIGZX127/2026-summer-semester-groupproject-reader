@@ -344,7 +344,6 @@ class TranslationAgent:
             messages,
             temperature=tpl.config.get("temperature", 0.1),
             max_tokens=tpl.config.get("max_tokens", 2048),
-            agent_type="translation",
         ):
             parts.append(chunk)
             # 即时广播每个 chunk（段内打字机效果）

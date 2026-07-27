@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +39,16 @@ class GeneralPanel(QWidget):
         form.setVerticalSpacing(10)
         form.addRow(self.tr("界面语言"), self.language_combo)
 
+        self.mark_read_delay = QSpinBox()
+        self.mark_read_delay.setRange(0, 300)
+        self.mark_read_delay.setSuffix(self.tr(" 秒"))
+        self.mark_read_delay.setAccessibleName(self.tr("标记已读等待时间"))
+        self.mark_read_delay.setValue(int(settings.value("reading/mark_read_delay_seconds", 0)))
+        self.mark_read_delay.setToolTip(
+            self.tr("文章持续停留达到该时间后标记为已读；0 表示立即标记")
+        )
+        form.addRow(self.tr("标记已读等待时间"), self.mark_read_delay)
+
         hint = QLabel(self.tr("语言更改将在下次启动 ChenXing 时生效。"))
         hint.setObjectName("MutedLabel")
         hint.setWordWrap(True)
@@ -64,6 +75,7 @@ class GeneralPanel(QWidget):
     def save(self) -> None:
         """Save the selected language for the next application start."""
         self._settings.setValue("ui/language", self.language_combo.currentData())
+        self._settings.setValue("reading/mark_read_delay_seconds", self.mark_read_delay.value())
         self._settings.sync()
         self.status_label.setText(self.tr("语言设置已保存，重启应用后生效"))
         self.settings_saved.emit()

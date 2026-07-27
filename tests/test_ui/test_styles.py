@@ -30,3 +30,40 @@ def test_application_stylesheet_has_reader_toolbar_control_states() -> None:
     assert "min-width: 36px; max-width: 36px" in qss
     assert "padding: 0; background" in qss
     assert "QWidget#SummaryHeaderBar" in qss
+
+
+def test_buttons_are_compact_and_settings_text_uses_theme_colors() -> None:
+    qss = application_stylesheet()
+    assert "padding: 0 10px" in qss
+    assert "QTabBar::tab" in qss
+    assert "QLabel { color:" in qss
+
+
+def test_tag_manager_surface_and_compact_toolbar_boxes_use_theme() -> None:
+    qss = application_stylesheet()
+    assert "QScrollArea#TagChipScrollArea" in qss
+    assert "QWidget#TagChipContainer" in qss
+    assert "QPushButton#TagAIButton" in qss
+    assert "QWidget#ReaderToolbar QPushButton {" in qss
+    assert "margin: 2px" in qss
+
+
+def test_all_icon_buttons_have_no_resting_boxes() -> None:
+    qss = application_stylesheet()
+    assert "QPushButton#TagAIButton { color: #26343F; background: transparent" in qss
+    assert (
+        "QWidget#Sidebar QPushButton#SidebarActionButton { min-width: 36px; "
+        "max-width: 36px;\n        min-height: 36px; max-height: 36px; padding: 0; "
+        "background: transparent;\n        border-color: transparent;"
+    ) in qss
+    assert (
+        "QPushButton#EntryHeaderIconButton, QPushButton#BatchActionButton { "
+        "min-width: 36px; max-width: 36px;\n        min-height: 36px; "
+        "max-height: 36px; padding: 0; background: transparent;\n        "
+        "border-color: transparent;"
+    ) in qss
+    assert (
+        "QWidget#ReaderToolbar QPushButton#ReaderPopupButton { min-width: 36px; "
+        "max-width: 36px;\n        min-height: 36px; max-height: 36px; padding: 0; "
+        "background: transparent;\n        border: 1px solid transparent;"
+    ) in qss

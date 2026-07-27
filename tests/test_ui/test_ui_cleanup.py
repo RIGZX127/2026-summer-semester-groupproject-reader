@@ -69,7 +69,7 @@ def test_entry_list_icon_controls_share_global_compact_size(qtbot) -> None:
         view.batch_close_button,
     )
     assert all(button.width() == button.height() == 36 for button in controls)
-    assert all(button.iconSize().width() == button.iconSize().height() == 18 for button in controls)
+    assert all(button.iconSize().width() == button.iconSize().height() == 20 for button in controls)
 
 
 def test_entry_list_does_not_open_article_in_batch_mode(qtbot) -> None:
@@ -96,7 +96,7 @@ def test_sidebar_replaces_verbose_actions_with_icons(qtbot) -> None:
         assert button.accessibleName()
         assert button.icon().isNull() is False
         assert button.size().width() == button.size().height() == 36
-        assert button.iconSize().width() == button.iconSize().height() == 18
+        assert button.iconSize().width() == button.iconSize().height() == 20
         assert button.property("immediateToolTip") is True
 
     assert sidebar.ai_card is None

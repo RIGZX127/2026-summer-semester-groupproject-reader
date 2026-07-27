@@ -22,6 +22,18 @@ class FakeRuntime:
         self.cancelled.append(run_id)
 
 
+def test_translation_html_cannot_override_reader_theme(qtbot) -> None:
+    view = ReaderView()
+    qtbot.addWidget(view)
+
+    view._set_translation_html(
+        '<p class="mercury-translated" style="color: white; background-color: #fff">译文</p>'
+    )
+
+    assert "color:" not in view._bilingual_fragment
+    assert "background-color:" not in view._bilingual_fragment
+
+
 def test_summary_panel_tracks_run_and_ignores_stale_events(qtbot) -> None:
     runtime = FakeRuntime()
     panel = SummaryPanel(runtime)

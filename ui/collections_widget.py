@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
@@ -29,6 +29,7 @@ class CollectionsWidget(QWidget):
     """Display collections and emit management intentions."""
 
     collection_selected = Signal(int)
+    collection_cleared = Signal()
     create_requested = Signal(str)
     rename_requested = Signal(int, str)
     delete_requested = Signal(int)
@@ -38,6 +39,7 @@ class CollectionsWidget(QWidget):
         self.heading = QLabel(self.tr("收藏夹"))
         self.heading.setObjectName("SidebarSection")
         self.add_button = QPushButton()
+        self.add_button.setObjectName("SidebarActionButton")
         self.add_button.setIcon(add_icon())
         self.add_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
         self.add_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
@@ -54,6 +56,7 @@ class CollectionsWidget(QWidget):
         self.collection_list = QListWidget()
         self.collection_list.setAccessibleName(self.tr("收藏夹列表"))
         self.collection_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.collection_list.viewport().installEventFilter(self)
         self.menu = QMenu(self)
         self.rename_action = self.menu.addAction(self.tr("重命名收藏夹"))
         self.delete_action = self.menu.addAction(self.tr("删除收藏夹"))
@@ -89,6 +92,26 @@ class CollectionsWidget(QWidget):
     def current_collection_id(self) -> int | None:
         item = self.collection_list.currentItem()
         return int(item.data(Qt.ItemDataRole.UserRole)) if item is not None else None
+
+    def clear_selection(self) -> None:
+        self.collection_list.setCurrentItem(None)
+        self.collection_list.clearSelection()
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
+        if (
+            watched is self.collection_list.viewport()
+            and event.type() == QEvent.Type.MouseButtonPress
+        ):
+            item = self.collection_list.itemAt(event.position().toPoint())
+            if (
+                item is self.collection_list.currentItem()
+                and item is not None
+                and item.isSelected()
+            ):
+                self.clear_selection()
+                self.collection_cleared.emit()
+                return True
+        return super().eventFilter(watched, event)
 
     def _on_current_item_changed(
         self,

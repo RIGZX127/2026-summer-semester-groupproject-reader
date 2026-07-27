@@ -211,6 +211,44 @@ def test_splitter_sizes_are_saved(tmp_path, qtbot) -> None:
     assert saved is not None
 
 
+def test_delayed_read_timer_is_replaced_when_article_changes(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    window._selected_entry_id = 1
+    window._entry_request_id = "first"
+    window._schedule_mark_read(1, "first", 30)
+
+    assert window._read_timer.isActive() is True
+    assert window._pending_read_entry_id == 1
+
+    window._cancel_pending_read()
+    window._selected_entry_id = 2
+    window._entry_request_id = "second"
+    window._schedule_mark_read(2, "second", 30)
+
+    assert window._pending_read_entry_id == 2
+    assert window._pending_read_request_id == "second"
+
+
+def test_zero_read_delay_marks_selected_article_immediately(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    window._settings.setValue("reading/mark_read_delay_seconds", 0)
+
+    asyncio.run(window.select_entry(7))
+
+    assert window._entry_store.marked_read == [7]
+
+
+def test_positive_read_delay_starts_timer_without_marking(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    window._settings.setValue("reading/mark_read_delay_seconds", 30)
+
+    asyncio.run(window.select_entry(8))
+
+    assert window._entry_store.marked_read == []
+    assert window._pending_read_entry_id == 8
+    assert window._read_timer.isActive() is True
+
+
 def test_batch_article_actions_reuse_existing_store_operations(
     tmp_path, qtbot, monkeypatch
 ) -> None:

@@ -155,7 +155,6 @@ class SummaryAgent:
                 ],
                 temperature=tpl.config.get("temperature", 0.3),
                 max_tokens=tpl.config.get("max_tokens", 1024),
-                agent_type="summary",
             ):
                 full_text_parts.append(chunk)
                 await buf.feed(chunk)

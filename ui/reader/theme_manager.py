@@ -108,6 +108,9 @@ class ThemeManager:
         pre {{ padding: 16px; }}
         blockquote {{ margin-left: 0; padding: 2px 0 2px 18px; color: {palette.text_muted};
           border-left: 3px solid {palette.accent}; }}
+        .mercury-translated {{ color: {palette.text}; background: {palette.surface_alt};
+          border-left: 3px solid {palette.accent}; border-radius: 8px;
+          padding: 10px 12px; }}
         hr {{ border: 0; border-top: 1px solid {palette.border}; }}
         h1, h2, h3, p, li {{ overflow-wrap: anywhere; }}
         """

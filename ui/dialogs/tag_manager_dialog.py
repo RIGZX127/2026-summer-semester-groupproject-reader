@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 from ui.flow_layout import FlowLayout
+from ui.icons import COMPACT_ICON_SIZE, agent_icon
+from ui.theme import LIGHT_PALETTE
 
 
 class TagChip(QWidget):
@@ -64,6 +66,8 @@ class TagChip(QWidget):
 class TagManagerDialog(QDialog):
     """Edit current tags and apply optional AI suggestions."""
 
+    ai_tags_requested = Signal()
+
     _MIN_TAG_AREA_HEIGHT = 52
     _MAX_TAG_AREA_HEIGHT = 172
 
@@ -83,6 +87,18 @@ class TagManagerDialog(QDialog):
 
         title = QLabel(self.tr("管理标签"))
         title.setObjectName("SectionTitle")
+        self.ai_button = QPushButton()
+        self.ai_button.setObjectName("TagAIButton")
+        self.ai_button.setIcon(agent_icon(LIGHT_PALETTE.text))
+        self.ai_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.ai_button.setFixedSize(36, 36)
+        self.ai_button.setToolTip(self.tr("使用 AI 生成标签"))
+        self.ai_button.setAccessibleName(self.tr("AI 生成标签"))
+        self.ai_button.clicked.connect(self._request_ai_tags)
+        title_row = QHBoxLayout()
+        title_row.addWidget(title)
+        title_row.addStretch()
+        title_row.addWidget(self.ai_button)
         hint = QLabel(self.tr("移除现有标签，或输入新标签后添加。"))
         hint.setObjectName("MutedLabel")
 
@@ -115,26 +131,13 @@ class TagManagerDialog(QDialog):
         add_row.addWidget(self._input, 1)
         add_row.addWidget(add_button)
 
-        suggestion_section = QWidget()
-        suggestion_layout = QVBoxLayout(suggestion_section)
-        suggestion_layout.setContentsMargins(0, 0, 0, 0)
-        suggestion_layout.setSpacing(4)
-        if self._suggested:
-            suggestion_title = QLabel(self.tr("AI 建议标签（点击 + 添加）"))
-            suggestion_title.setObjectName("MutedLabel")
-            suggestion_layout.addWidget(suggestion_title)
-            suggestion_container = QWidget()
-            suggestion_flow = FlowLayout(
-                suggestion_container,
-                horizontal_spacing=4,
-                vertical_spacing=4,
-            )
-            for name in self._suggested:
-                if name not in self._tag_set:
-                    chip = TagChip(name, suggestion=True)
-                    chip.remove_clicked.connect(self._add_suggestion)
-                    suggestion_flow.addWidget(chip)
-            suggestion_layout.addWidget(suggestion_container)
+        self._ai_status = QLabel()
+        self._ai_status.setObjectName("MutedLabel")
+        self._suggestion_section = QWidget()
+        self._suggestion_layout = QVBoxLayout(self._suggestion_section)
+        self._suggestion_layout.setContentsMargins(0, 0, 0, 0)
+        self._suggestion_layout.setSpacing(4)
+        self._rebuild_suggestions()
 
         self._cancel_btn = QPushButton(self.tr("取消"))
         self._save_btn = QPushButton(self.tr("保存"))
@@ -148,11 +151,12 @@ class TagManagerDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(10)
-        layout.addWidget(title)
+        layout.addLayout(title_row)
         layout.addWidget(hint)
         layout.addWidget(self.tag_scroll)
         layout.addLayout(add_row)
-        layout.addWidget(suggestion_section)
+        layout.addWidget(self._ai_status)
+        layout.addWidget(self._suggestion_section)
         layout.addSpacing(4)
         layout.addLayout(button_row)
 
@@ -167,6 +171,55 @@ class TagManagerDialog(QDialog):
 
     def tag_names(self) -> list[str]:
         return list(self._tag_set)
+
+    def suggested_tag_names(self) -> list[str]:
+        return list(self._suggested)
+
+    def set_ai_state(
+        self,
+        status: str,
+        suggestions: list[str] | None = None,
+        error: str | None = None,
+    ) -> None:
+        running = status in {"queued", "running"}
+        self.ai_button.setEnabled(not running)
+        if running:
+            self._ai_status.setText(self.tr("正在生成标签…"))
+        elif status == "error":
+            self._ai_status.setText(self.tr("生成失败：{0}").format(error or self.tr("未知错误")))
+        else:
+            self._ai_status.clear()
+        if suggestions is not None:
+            self._suggested = list(dict.fromkeys(suggestions))
+            self._rebuild_suggestions()
+
+    def _request_ai_tags(self) -> None:
+        self.set_ai_state("queued")
+        self.ai_tags_requested.emit()
+
+    def _rebuild_suggestions(self) -> None:
+        while self._suggestion_layout.count():
+            item = self._suggestion_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        available = [name for name in self._suggested if name not in self._tag_set]
+        self._suggestion_section.setVisible(bool(available))
+        if not available:
+            return
+        suggestion_title = QLabel(self.tr("AI 建议标签（点击 + 添加）"))
+        suggestion_title.setObjectName("MutedLabel")
+        self._suggestion_layout.addWidget(suggestion_title)
+        suggestion_container = QWidget()
+        suggestion_flow = FlowLayout(
+            suggestion_container,
+            horizontal_spacing=4,
+            vertical_spacing=4,
+        )
+        for name in available:
+            chip = TagChip(name, suggestion=True)
+            chip.remove_clicked.connect(self._add_suggestion)
+            suggestion_flow.addWidget(chip)
+        self._suggestion_layout.addWidget(suggestion_container)
 
     def reject(self) -> None:
         self._tag_set[:] = self._original
@@ -208,3 +261,4 @@ class TagManagerDialog(QDialog):
 
     def _add_suggestion(self, name: str) -> None:
         self._add_tag(name)
+        self._rebuild_suggestions()

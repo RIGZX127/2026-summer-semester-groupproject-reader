@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 
 from core.feed.sync import SyncSignals
 from store.entry_store import EntryListItem, EntryRow
@@ -131,6 +131,21 @@ def test_collections_widget_lists_rows_and_emits_selection(qtbot) -> None:
     with qtbot.waitSignal(widget.collection_selected, timeout=500) as signal:
         widget.collection_list.setCurrentRow(0)
     assert signal.args == [3]
+
+
+def test_clicking_selected_collection_again_clears_selection(qtbot) -> None:
+    widget = CollectionsWidget()
+    qtbot.addWidget(widget)
+    widget.set_collections([FakeCollection(3, "课程资料")])
+    widget.show()
+    item = widget.collection_list.item(0)
+    point = widget.collection_list.visualItemRect(item).center()
+
+    qtbot.mouseClick(widget.collection_list.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    with qtbot.waitSignal(widget.collection_cleared, timeout=500):
+        qtbot.mouseClick(widget.collection_list.viewport(), Qt.MouseButton.LeftButton, pos=point)
+
+    assert widget.collection_list.currentItem() is None
 
 
 def test_entry_list_emits_add_to_collection(qtbot) -> None:

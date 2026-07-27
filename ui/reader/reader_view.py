@@ -472,8 +472,10 @@ class ReaderView(QWidget):
     def _set_translation_html(self, bilingual_html: str) -> None:
         from bs4 import BeautifulSoup
 
-        self._bilingual_fragment = bilingual_html
         soup = BeautifulSoup(bilingual_html, "html.parser")
+        for node in soup.select("[style]"):
+            del node["style"]
+        self._bilingual_fragment = str(soup)
         self._translated_fragment = "\n".join(
             str(node) for node in soup.select(".mercury-translated")
         )
