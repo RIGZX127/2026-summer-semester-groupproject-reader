@@ -67,8 +67,14 @@ def _default_data_path() -> str:
 def _build_agent_runtime(
     db: DatabaseManager,
     settings: QSettings,
+    usage_store: object | None = None,
 ) -> tuple:
     """构建 AgentRuntime 并注册所有 Agent。
+
+    Args:
+        db: 数据库管理器。
+        settings: QSettings 实例。
+        usage_store: 可选的 UsageStore，用于记录 LLM 调用用量。
 
     Returns:
         (AgentRuntime, has_llm_configured: bool)
@@ -114,6 +120,8 @@ def _build_agent_runtime(
         if api_key:
             primary.set_api_key(api_key)
         router = LLMRouter(primary=primary)
+        if usage_store is not None:
+            router.set_usage_store(usage_store)
     else:
         # 用一个占位 router——Agent 注册了但调用时会报错
         router = LLMRouter(
@@ -123,6 +131,8 @@ def _build_agent_runtime(
                 model="unconfigured",
             )
         )
+        if usage_store is not None:
+            router.set_usage_store(usage_store)
 
     # ── SummaryAgent ─────────────────────────────────────────────────
     summary_agent = SummaryAgent(pipeline, router, templates, agent_store)
@@ -205,6 +215,11 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
         primary.set_api_key(api_key)
     router = LLMRouter(primary=primary)
 
+    # ── 注入 UsageStore ──────────────────────────────────────────────
+    from store.usage_store import UsageStore
+
+    router.set_usage_store(UsageStore(state.db))
+
     # ── 模板加载器 ────────────────────────────────────────────────────
     from app.paths import bundle_path
 
@@ -283,8 +298,11 @@ class MercuryApp:
                     app.installTranslator(translator)
                     self._translator = translator
 
+        # ── UsageStore (在 Agent runtime 之前创建，以便注入) ──────
+        usage_store = UsageStore(state.db)
+
         # ── Agent runtime (may be unconfigured) ────────────────────
-        runtime, has_llm = _build_agent_runtime(state.db, self._settings)
+        runtime, has_llm = _build_agent_runtime(state.db, self._settings, usage_store)
 
         # ── MainWindow ─────────────────────────────────────────────
         window = MainWindow(
@@ -299,7 +317,7 @@ class MercuryApp:
             digest_controller=DigestController(state.db),
             opml_controller=OPMLController(state.db),
             collection_store=CollectionStore(state.db),
-            usage_store=UsageStore(state.db),
+            usage_store=usage_store,
         )
 
         app = QApplication.instance()
