@@ -10,6 +10,7 @@
   - 可选：TagStore（G4.1 交付后注入），Normalizer（G4.1 交付后注入）
     未注入时仅返回 LLM 建议的原始标签列表。
 """
+
 from __future__ import annotations
 
 import json
@@ -128,9 +129,7 @@ class TagAgent:
         rendered = await self._pipeline.build(entry_id)
         content = rendered.markdown or rendered.html
         if not content:
-            raise TagAgentError(
-                f"No content available for entry {entry_id}"
-            )
+            raise TagAgentError(f"No content available for entry {entry_id}")
 
         # ── 2. 收集已有标签 ──────────────────────────────────────────
         existing: list[str] = []
@@ -159,14 +158,11 @@ class TagAgent:
             ],
             temperature=tpl.config.get("temperature", 0.5),
             max_tokens=tpl.config.get("max_tokens", 256),
-            agent_type="tagging",
         ):
             parts.append(chunk)
             # 广播流式 chunk（TagAgent 也支持流式）
             if self._runtime:
-                self._runtime.broadcast_chunk(
-                    run_id, entry_id, "tagging", chunk
-                )
+                self._runtime.broadcast_chunk(run_id, entry_id, "tagging", chunk)
 
         full_text = "".join(parts)
 
@@ -236,9 +232,7 @@ class TagAgent:
 
         return []
 
-    def _normalize_and_dedup(
-        self, raw_tags: list[str], existing: list[str]
-    ) -> list[str]:
+    def _normalize_and_dedup(self, raw_tags: list[str], existing: list[str]) -> list[str]:
         """规范化并去重标签。
 
         步骤：

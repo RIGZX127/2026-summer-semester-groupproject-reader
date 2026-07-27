@@ -1,4 +1,5 @@
 """Tests for TagNormalizer."""
+
 from __future__ import annotations
 
 from core.tags.normalizer import TagNormalizer, normalize
@@ -24,6 +25,7 @@ class TestNormalizeBasics:
         # é can be composed (NFC) or decomposed (NFD)
         # Normalizer should produce NFC
         import unicodedata
+
         nfd = unicodedata.normalize("NFD", "café")
         result = normalize(nfd)
         assert result == "café"

@@ -30,6 +30,7 @@ class SummaryPanel(QFrame):
 
     generate_requested = Signal(int)  # entry_id
     expanded_changed = Signal(bool)
+    ai_unconfigured = Signal(str)
     _COLLAPSED_HEIGHT = 44
 
     def __init__(
@@ -196,7 +197,7 @@ class SummaryPanel(QFrame):
         if self._entry_id is None:
             return
         if self._runtime is None:
-            self._placeholder.setText(self.tr("AI Agent 未配置。请在设置中添加 LLM 提供者。"))
+            self.ai_unconfigured.emit("summary")
             return
         self.generate_requested.emit(self._entry_id)
         try:

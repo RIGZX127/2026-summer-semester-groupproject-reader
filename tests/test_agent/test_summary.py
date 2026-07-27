@@ -1,5 +1,6 @@
 # tests/test_agent/test_summary.py
 """SummaryAgent 单元测试（mock AsyncOpenAI，无真实 LLM 调用）。"""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -10,6 +11,7 @@ from core.agent.summary import SummaryAgent
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 async def entry_id(db) -> int:
     """在内存数据库中创建 feed + entry，返回 entry ID 用于外键约束。"""
@@ -18,8 +20,13 @@ async def entry_id(db) -> int:
 
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-summary-test", "https://example.com/article",
-        "Test Article", "Summary text", "Author", None,
+        feed.id,
+        "guid-summary-test",
+        "https://example.com/article",
+        "Test Article",
+        "Summary text",
+        "Author",
+        None,
     )
     return entry.id
 
@@ -86,9 +93,7 @@ def mock_runtime() -> MagicMock:
 
 
 @pytest.fixture
-def agent(
-    db, mock_pipeline, mock_router, mock_templates
-) -> SummaryAgent:
+def agent(db, mock_pipeline, mock_router, mock_templates) -> SummaryAgent:
     from store.agent_store import AgentStore
 
     return SummaryAgent(
@@ -101,10 +106,9 @@ def agent(
 
 # ── Tests ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_summary_agent_registers_handler(
-    agent, mock_runtime
-) -> None:
+async def test_summary_agent_registers_handler(agent, mock_runtime) -> None:
     """验证 register() 向 AgentRuntime 注册 'summary' handler。"""
     agent.register(mock_runtime)
     mock_runtime.register.assert_called_once()
@@ -114,9 +118,7 @@ async def test_summary_agent_registers_handler(
 
 
 @pytest.mark.asyncio
-async def test_summary_generates_and_persists_result(
-    agent, mock_runtime, entry_id
-) -> None:
+async def test_summary_generates_and_persists_result(agent, mock_runtime, entry_id) -> None:
     """验证流式生成摘要并持久化到 AgentStore。"""
     agent.register(mock_runtime)
     agent.detail_level = "standard"
@@ -133,9 +135,7 @@ async def test_summary_generates_and_persists_result(
 
 
 @pytest.mark.asyncio
-async def test_summary_broadcasts_chunks_to_runtime(
-    agent, mock_runtime, entry_id
-) -> None:
+async def test_summary_broadcasts_chunks_to_runtime(agent, mock_runtime, entry_id) -> None:
     """验证每个 chunk 通过 runtime.broadcast_chunk() 发送给 UI。"""
     agent.register(mock_runtime)
     handler = mock_runtime.register.call_args[0][1]
@@ -179,9 +179,7 @@ async def test_summary_no_markdown_raises_error(
 
 
 @pytest.mark.asyncio
-async def test_summary_cache_hit_skips_llm_call(
-    agent, mock_runtime, mock_router, entry_id
-) -> None:
+async def test_summary_cache_hit_skips_llm_call(agent, mock_runtime, mock_router, entry_id) -> None:
     """验证缓存命中时跳过 LLM 调用，直接返回缓存结果。"""
     agent.register(mock_runtime)
     handler = mock_runtime.register.call_args[0][1]

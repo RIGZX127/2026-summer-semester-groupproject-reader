@@ -1,9 +1,10 @@
-﻿# core/reader/pipeline.py
+# core/reader/pipeline.py
 """Reader 管线：Fetch -> Extract -> Convert -> Render -> Cache。
 
 对外唯一接口：ReaderPipeline.build(entry_id, request_id=None)
 返回 RenderedContent，可直接传给 QWebEngineView.setHtml()。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,16 +23,16 @@ if TYPE_CHECKING:
     from store.db import DatabaseManager
 
 # ── 版本常量（算法升级时递增，触发缓存失效）────────────────────────────
-READER_VERSION   = 1
+READER_VERSION = 1
 MARKDOWN_VERSION = 1
-RENDER_VERSION   = 1
+RENDER_VERSION = 1
 
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/131.0.0.0 Safari/537.36"
 )
-_EXECUTOR_TIMEOUT = 30.0   # run_in_executor 的统一超时（秒）
+_EXECUTOR_TIMEOUT = 30.0  # run_in_executor 的统一超时（秒）
 
 # 模拟真实浏览器的请求头，降低被 Cloudflare 等 CDN 拦截的概率
 # Sec-Fetch 系列是 Chromium 每次请求都发送的头，Cloudflare Bot Detection 会检查
@@ -113,9 +114,7 @@ async def _fetch_via_webengine(url: str) -> str:
         if future.done():
             return
         if not ok:
-            future.set_exception(
-                RuntimeError(f"QWebEnginePage failed to load: {url}")
-            )
+            future.set_exception(RuntimeError(f"QWebEnginePage failed to load: {url}"))
             _cleanup()
             return
         # toHtml 回调拿到渲染后的完整 HTML
@@ -172,17 +171,18 @@ class ReaderFetchError(Exception):
 @dataclass
 class RenderedContent:
     entry_id: int
-    html: str              # mistune 渲染后的 HTML，直接传给 QWebEngineView.setHtml()
+    html: str  # mistune 渲染后的 HTML，直接传给 QWebEngineView.setHtml()
     title: str
     byline: str
     from_cache: bool
-    markdown: str = field(default="")          # 问题1：暴露原始 Markdown，供 Agent 直接使用
+    markdown: str = field(default="")  # 问题1：暴露原始 Markdown，供 Agent 直接使用
     request_id: str | None = field(default=None)
 
 
 def _render_markdown(markdown_text: str) -> str:
     """用 mistune 将 Markdown 渲染为 HTML。"""
     import mistune  # type: ignore[import]
+
     renderer = mistune.HTMLRenderer()
     md = mistune.create_markdown(
         renderer=renderer,
@@ -193,14 +193,14 @@ def _render_markdown(markdown_text: str) -> str:
 
 def _fallback_html(title: str, summary: str) -> str:
     """readability 提取失败时的简单回退 HTML。"""
-    safe_title   = title.replace("<", "&lt;").replace(">", "&gt;")
+    safe_title = title.replace("<", "&lt;").replace(">", "&gt;")
     safe_summary = summary.replace("<", "&lt;").replace(">", "&gt;")
     return f"<h1>{safe_title}</h1><p>{safe_summary}</p>"
 
 
 async def _run_sync(fn, *args) -> object:
     """在 executor 中运行同步函数，附带统一超时保护。问题2.2"""
-    loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
+    loop = asyncio.get_running_loop()  # 问题2.1：已更新为非废弃 API
     return await asyncio.wait_for(
         loop.run_in_executor(None, fn, *args),
         timeout=_EXECUTOR_TIMEOUT,
@@ -209,8 +209,8 @@ async def _run_sync(fn, *args) -> object:
 
 class ReaderPipeline:
     def __init__(self, db: DatabaseManager) -> None:
-        self._entry_store   = EntryStore(db)
-        self._cache         = ReaderCache(db)
+        self._entry_store = EntryStore(db)
+        self._cache = ReaderCache(db)
         self._content_store = ContentStore(db)
 
     async def build(
@@ -231,9 +231,7 @@ class ReaderPipeline:
         # ── 0. 取文章基本信息 ───────────────────────────────────────────
         entry = await self._entry_store.get(entry_id)
         if entry is None:
-            raise ReaderFetchError(
-                f"Entry {entry_id} not found", entry_id=entry_id
-            )
+            raise ReaderFetchError(f"Entry {entry_id} not found", entry_id=entry_id)
 
         # ── 1. 检查缓存 ─────────────────────────────────────────────────
         cached = await self._cache.get(entry_id, READER_VERSION, MARKDOWN_VERSION)
@@ -272,12 +270,12 @@ class ReaderPipeline:
         if source_html:
             extracted = await _run_sync(rd_module.extract, source_html, entry.url or "")
             cleaned_html = extracted.cleaned_html
-            title        = extracted.title or entry.title
-            byline       = extracted.byline
+            title = extracted.title or entry.title
+            byline = extracted.byline
         else:
             cleaned_html = ""
-            title        = entry.title
-            byline       = ""
+            title = entry.title
+            byline = ""
 
         # ── 4. Convert（markdownify）── 回退：用 summary ─────────────────
         if cleaned_html:
@@ -324,7 +322,6 @@ class ReaderPipeline:
             title=title,
             byline=byline,
             from_cache=False,
-            markdown=markdown_text,             # 问题1：传出 markdown 字段
+            markdown=markdown_text,  # 问题1：传出 markdown 字段
             request_id=request_id,
         )
-

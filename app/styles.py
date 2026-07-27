@@ -27,6 +27,14 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QLabel#StateTitle {{ font-size: 17px; font-weight: 650; }}
     QLabel#LoadingBanner {{ color: {p.accent}; background: {p.accent_soft};
         padding: 8px 12px; border-radius: {RADIUS["control"]}px; }}
+    QFrame#AIUnconfiguredBanner {{ color: {p.text}; background: {p.accent_soft};
+        border-bottom: 1px solid {p.border_strong}; }}
+    QLabel#AIUnconfiguredMessage {{ color: {p.text}; font-weight: 600; }}
+    QPushButton#AISettingsButton {{ color: {p.text_on_accent}; background: {p.accent};
+        border-color: {p.accent}; }}
+    QPushButton#AIBannerCloseButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0; background: transparent;
+        border-color: transparent; }}
     QListWidget {{ border: 0; outline: 0; background: transparent; }}
     QListWidget::item {{ padding: 12px; border-radius: {RADIUS["control"]}px; }}
     QListWidget::item:hover {{ background: {p.surface_hover}; }}
@@ -46,8 +54,8 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPushButton#PrimaryButton:hover, QPushButton[buttonRole="primary"]:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
     QPushButton#PrimaryButton:pressed, QPushButton[buttonRole="primary"]:pressed {{ background: {p.accent_pressed}; border-color: {p.accent_pressed}; }}
     QPushButton#DangerButton:hover {{ color: {p.error}; background: {p.error_soft}; border-color: {p.error}; }}
-    QWidget#ReaderToolbar QPushButton {{ min-width: 28px; max-width: 28px;
-        min-height: 28px; max-height: 28px; padding: 0; color: {p.text_muted};
+    QWidget#ReaderToolbar QPushButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0; color: {p.text_muted};
         background: transparent; border-color: transparent; }}
     QWidget#ReaderToolbar QPushButton:hover {{ color: {p.text}; background: {p.surface_hover}; }}
     QWidget#ReaderToolbar QPushButton:checked {{ color: {p.text_on_accent}; background: {p.accent}; border-color: {p.accent}; }}
@@ -71,8 +79,8 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QWidget#EntryBatchToolbar {{ background: {p.surface_alt}; border: 1px solid {p.border};
         border-radius: {RADIUS["control"]}px; }}
     QLabel#BatchCountLabel {{ color: {p.text_muted}; font-weight: 600; }}
-    QPushButton#EntryHeaderIconButton, QPushButton#BatchActionButton {{ min-width: 28px; max-width: 28px;
-        min-height: 28px; max-height: 28px; padding: 0; }}
+    QPushButton#EntryHeaderIconButton, QPushButton#BatchActionButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0; }}
     QGroupBox {{ margin-top: 12px; padding-top: 14px; border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; font-weight: 650; }}
     QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 4px; }}
     QTabWidget::pane {{ border: 1px solid {p.border}; border-radius: {RADIUS["panel"]}px; background: {p.surface}; }}
@@ -90,14 +98,19 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QPlainTextEdit#NoteTextEdit:focus {{ border: 2px solid {p.focus}; }}
     QPlainTextEdit#NoteTextEdit:disabled {{ color: {p.text_disabled};
         background: {p.surface_alt}; }}
+    QPlainTextEdit#ExportPreview {{ color: {p.text}; background: {p.surface};
+        border: 1px solid {p.border}; border-radius: {RADIUS["control"]}px;
+        padding: 10px; selection-color: {p.text_on_accent};
+        selection-background-color: {p.accent}; }}
+    QPlainTextEdit#ExportPreview:focus {{ border: 2px solid {p.focus}; }}
     QLabel#NoteSaveStatus {{ color: {p.text_muted}; }}
     QWidget#Sidebar QPushButton {{ color: white; background: {p.sidebar_selected}; border-color: {p.sidebar_hover}; }}
-    QWidget#Sidebar QPushButton#SidebarCollapseButton {{ min-width: 28px; max-width: 28px;
-        min-height: 28px; max-height: 28px; padding: 0; background: transparent;
+    QWidget#Sidebar QPushButton#SidebarCollapseButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0; background: transparent;
         border-color: transparent; }}
     QWidget#Sidebar QPushButton#SidebarCollapseButton:hover {{ background: {p.sidebar_hover}; border-color: {p.sidebar_selected}; }}
-    QWidget#Sidebar QPushButton#SidebarActionButton {{ min-width: 28px; max-width: 28px;
-        min-height: 28px; max-height: 28px; padding: 0; background: transparent;
+    QWidget#Sidebar QPushButton#SidebarActionButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0; background: transparent;
         border-color: {p.sidebar_selected}; }}
     QWidget#Sidebar QPushButton#SidebarActionButton:hover {{ background: {p.sidebar_hover};
         border-color: #8CA29A; }}
@@ -112,8 +125,8 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     }}
     QComboBox[readerControl="true"] QAbstractItemView {{ color: {p.text}; background: {p.control};
         selection-color: {p.text_on_accent}; selection-background-color: {p.accent}; border: 1px solid {p.border}; outline: 0; }}
-    QWidget#ReaderToolbar QPushButton#ReaderPopupButton {{ min-width: 28px; max-width: 28px;
-        min-height: 28px; max-height: 28px; padding: 0; background: {p.control};
+    QWidget#ReaderToolbar QPushButton#ReaderPopupButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0; background: {p.control};
         border: 1px solid {p.border}; }}
     QWidget#ReaderToolbar QPushButton#ReaderPopupButton:hover {{ background: {p.surface_hover};
         border-color: {p.border_strong}; }}
@@ -142,13 +155,13 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QLabel#TagSuggestionLabel {{ color: {p.accent}; background: {p.surface};
         border: 1px dashed {p.accent}; border-radius: 10px;
         padding: 3px 6px; font-size: 13px; }}
-    QPushButton#TagRemoveButton {{ min-width: 20px; max-width: 20px;
-        min-height: 20px; max-height: 20px; padding: 0;
+    QPushButton#TagRemoveButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0;
         color: {p.text_muted}; background: transparent; border: 0;
         font-size: 14px; font-weight: 700; }}
     QPushButton#TagRemoveButton:hover {{ color: {p.error}; }}
-    QPushButton#TagAddButton {{ min-width: 20px; max-width: 20px;
-        min-height: 20px; max-height: 20px; padding: 0;
+    QPushButton#TagAddButton {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0;
         color: {p.accent}; background: transparent; border: 0;
         font-size: 16px; font-weight: 700; }}
     QPushButton#TagBadge {{ color: {p.text}; background: {p.accent_soft};
@@ -159,13 +172,18 @@ def application_stylesheet(palette: Palette = LIGHT_PALETTE) -> str:
     QWidget#TagFilterBar {{ background: {p.sidebar_hover}; border-radius: 8px;
         padding: 4px 8px; }}
     QLabel#TagFilterLabel {{ font-size: 13px; font-weight: 600; }}
-    QPushButton#TagFilterClear {{ min-width: 24px; max-width: 24px;
-        min-height: 24px; max-height: 24px; padding: 0;
+    QPushButton#TagFilterClear {{ min-width: 36px; max-width: 36px;
+        min-height: 36px; max-height: 36px; padding: 0;
         color: #EAF0ED; background: transparent; border: 0;
         font-size: 16px; font-weight: 700; }}
     QPushButton#TagFilterClear:hover {{ color: {p.error}; }}
     QFrame#UsageStatCard {{ background: {p.control}; border: 1px solid {p.border};
         border-radius: {RADIUS["control"]}px; }}
+    QWidget#UsagePanel, QWidget#UsagePanel QScrollArea, QWidget#UsagePanel QScrollArea > QWidget > QWidget {{
+        background: {p.surface}; }}
+    QLabel#UsageEmptyState {{ color: {p.text_muted}; background: {p.surface_alt};
+        border: 1px dashed {p.border_strong}; border-radius: {RADIUS["control"]}px;
+        padding: 24px; }}
     QLabel#UsageStatValue {{ font-size: 22px; font-weight: 700; color: {p.accent}; }}
     QLabel#UsageAgentTypeLabel {{ font-weight: 600; }}
     QPushButton#TagAddButton:hover {{ color: {p.accent_hover}; }}

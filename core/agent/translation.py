@@ -12,6 +12,7 @@
 - AgentStore 持久化：翻译结果缓存，命中 (entry_id, provider, model, prompt_version)
 - 失败段 ID 暴露：result 中 failed_segment_indices 供 UI 做定向重试
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -158,9 +159,7 @@ class TranslationAgent:
                     if cached_result.get("_cache_key") == cache_key:
                         html = cached_result.get("html", "")
                         if html and self._runtime:
-                            self._runtime.broadcast_chunk(
-                                run_id, entry_id, "translation", html
-                            )
+                            self._runtime.broadcast_chunk(run_id, entry_id, "translation", html)
                         return cached_result
                 except (json.JSONDecodeError, KeyError):
                     pass
@@ -168,9 +167,7 @@ class TranslationAgent:
         # ── 1. 获取 HTML ──────────────────────────────────────────────
         rendered = await self._pipeline.build(entry_id)
         if not rendered.html:
-            raise TranslationAgentError(
-                f"No HTML content available for entry {entry_id}"
-            )
+            raise TranslationAgentError(f"No HTML content available for entry {entry_id}")
 
         # ── 2. 分段 ───────────────────────────────────────────────────
         segments = self._split_html(rendered.html)
@@ -188,13 +185,12 @@ class TranslationAgent:
         async def translate_one(seg: _Segment, prev: _Segment | None) -> None:
             try:
                 async with sem:
-                    await self._translate_segment(
-                        seg, prev, tpl, run_id, entry_id
-                    )
+                    await self._translate_segment(seg, prev, tpl, run_id, entry_id)
                 # 段完成 — 广播 segment_done
                 seg_html = self._render_segment_pair(seg)
                 self._broadcast_event(
-                    run_id, entry_id,
+                    run_id,
+                    entry_id,
                     {
                         "type": "segment_done",
                         "index": seg.index,
@@ -205,7 +201,8 @@ class TranslationAgent:
             except Exception as exc:
                 seg.error = str(exc)
                 self._broadcast_event(
-                    run_id, entry_id,
+                    run_id,
+                    entry_id,
                     {"type": "segment_error", "index": seg.index, "error": str(exc)},
                 )
             # 更新进度
@@ -237,9 +234,7 @@ class TranslationAgent:
                     seg.error = ""
                     prev_seg = segments[seg.index - 1] if seg.index > 0 else None
                     try:
-                        await self._translate_segment(
-                            seg, prev_seg, tpl, run_id, entry_id
-                        )
+                        await self._translate_segment(seg, prev_seg, tpl, run_id, entry_id)
                     except Exception as exc:
                         seg.error = str(exc)
                         still_failed.append(seg)
@@ -268,7 +263,8 @@ class TranslationAgent:
 
         # 广播翻译完成事件（含纯文本用于全文对比模式）
         self._broadcast_event(
-            run_id, entry_id,
+            run_id,
+            entry_id,
             {
                 "type": "translation_done",
                 "html": bilingual_html,
@@ -348,12 +344,12 @@ class TranslationAgent:
             messages,
             temperature=tpl.config.get("temperature", 0.1),
             max_tokens=tpl.config.get("max_tokens", 2048),
-            agent_type="translation",
         ):
             parts.append(chunk)
             # 即时广播每个 chunk（段内打字机效果）
             self._broadcast_event(
-                run_id, entry_id,
+                run_id,
+                entry_id,
                 {"type": "segment_chunk", "index": seg.index, "text": chunk},
             )
 
@@ -379,16 +375,14 @@ class TranslationAgent:
 
     # ── 事件广播 ─────────────────────────────────────────────────────────
 
-    def _broadcast_event(
-        self, run_id: str, entry_id: int, payload: dict
-    ) -> None:
+    def _broadcast_event(self, run_id: str, entry_id: int, payload: dict) -> None:
         """广播 JSON 事件到 UI。通过 chunk_received 信号发送。"""
         if self._runtime:
-            self._runtime.broadcast_chunk(run_id, entry_id, "translation", json.dumps(payload, ensure_ascii=False))
+            self._runtime.broadcast_chunk(
+                run_id, entry_id, "translation", json.dumps(payload, ensure_ascii=False)
+            )
 
-    def _broadcast_progress(
-        self, run_id: str, entry_id: int, progress: float
-    ) -> None:
+    def _broadcast_progress(self, run_id: str, entry_id: int, progress: float) -> None:
         """广播翻译进度（0.0–1.0）给 UI。"""
         if self._runtime:
             from core.agent.runtime import AgentUIEvent

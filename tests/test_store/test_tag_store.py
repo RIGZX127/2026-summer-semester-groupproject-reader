@@ -1,4 +1,5 @@
 """Tests for TagStore — tag CRUD, entry associations, aliases."""
+
 from __future__ import annotations
 
 import pytest

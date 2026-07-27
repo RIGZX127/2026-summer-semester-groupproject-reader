@@ -1,5 +1,6 @@
-﻿# tests/test_reader/test_pipeline.py
+# tests/test_reader/test_pipeline.py
 """Reader 管线测试（mock httpx，不发真实网络请求）。"""
+
 from __future__ import annotations
 
 import pathlib
@@ -33,10 +34,16 @@ def _mock_http(content: str = FIXTURE_HTML, status: int = 200):
 async def test_pipeline_full_run_returns_rendered_content(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p1", "https://example.com/article",
-        "Python Asyncio", "Short summary", "Alice", None
+        feed.id,
+        "guid-p1",
+        "https://example.com/article",
+        "Python Asyncio",
+        "Short summary",
+        "Alice",
+        None,
     )
     pipeline = ReaderPipeline(db)
     with patch("core.reader.pipeline.httpx.AsyncClient", return_value=_mock_http()):
@@ -52,10 +59,10 @@ async def test_pipeline_full_run_returns_rendered_content(db) -> None:
 async def test_pipeline_cache_hit_skips_http(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p2", "https://example.com/article2",
-        "Cached Article", "Summary", "", None
+        feed.id, "guid-p2", "https://example.com/article2", "Cached Article", "Summary", "", None
     )
     pipeline = ReaderPipeline(db)
     mock_client = _mock_http()
@@ -75,10 +82,10 @@ async def test_pipeline_cache_hit_skips_http(db) -> None:
 async def test_pipeline_cache_miss_on_version_bump(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p3", "https://example.com/article3",
-        "Version Test", "Summary", "", None
+        feed.id, "guid-p3", "https://example.com/article3", "Version Test", "Summary", "", None
     )
     pipeline = ReaderPipeline(db)
     mock_client = _mock_http()
@@ -90,7 +97,7 @@ async def test_pipeline_cache_miss_on_version_bump(db) -> None:
     with patch("core.reader.pipeline.httpx.AsyncClient", return_value=mock_client2):
         with patch("core.reader.pipeline.READER_VERSION", 2):
             result = await pipeline.build(entry.id)
-    assert mock_client2.get.call_count == 1   # 缓存失效，重新抓取
+    assert mock_client2.get.call_count == 1  # 缓存失效，重新抓取
     assert result.from_cache is False
 
 
@@ -100,10 +107,10 @@ async def test_pipeline_fetch_404_raises_error(db) -> None:
 
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p4", "https://example.com/article4",
-        "404 Article", "Summary", "", None
+        feed.id, "guid-p4", "https://example.com/article4", "404 Article", "Summary", "", None
     )
     pipeline = ReaderPipeline(db)
     mock_resp = MagicMock()
@@ -128,10 +135,10 @@ async def test_pipeline_network_error_raises_fetch_error(db) -> None:
 
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p5", "https://example.com/article5",
-        "Net Error", "Summary", "", None
+        feed.id, "guid-p5", "https://example.com/article5", "Net Error", "Summary", "", None
     )
     pipeline = ReaderPipeline(db)
     mock_client = AsyncMock()
@@ -148,15 +155,26 @@ async def test_pipeline_empty_readability_falls_back(db) -> None:
     from core.reader.readability import ExtractedContent
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p6", "https://example.com/article6",
-        "Fallback Test", "This is the summary fallback text.", "", None
+        feed.id,
+        "guid-p6",
+        "https://example.com/article6",
+        "Fallback Test",
+        "This is the summary fallback text.",
+        "",
+        None,
     )
     pipeline = ReaderPipeline(db)
-    with patch("core.reader.pipeline.httpx.AsyncClient", return_value=_mock_http("<html><body>hi</body></html>")):
-        with patch("core.reader.pipeline.rd_module.extract",
-                   return_value=ExtractedContent("", "Fallback Test", "")):
+    with patch(
+        "core.reader.pipeline.httpx.AsyncClient",
+        return_value=_mock_http("<html><body>hi</body></html>"),
+    ):
+        with patch(
+            "core.reader.pipeline.rd_module.extract",
+            return_value=ExtractedContent("", "Fallback Test", ""),
+        ):
             result = await pipeline.build(entry.id)
     # 回退时应包含 summary 内容，不抛异常
     assert "summary fallback" in result.html.lower() or "fallback" in result.html.lower()
@@ -167,10 +185,10 @@ async def test_pipeline_empty_readability_falls_back(db) -> None:
 async def test_pipeline_request_id_passed_through(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-p7", "https://example.com/article7",
-        "ReqID Test", "Summary", "", None
+        feed.id, "guid-p7", "https://example.com/article7", "ReqID Test", "Summary", "", None
     )
     pipeline = ReaderPipeline(db)
     with patch("core.reader.pipeline.httpx.AsyncClient", return_value=_mock_http()):

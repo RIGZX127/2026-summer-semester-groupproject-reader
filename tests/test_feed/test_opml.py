@@ -1,5 +1,6 @@
-﻿# tests/test_feed/test_opml.py
+# tests/test_feed/test_opml.py
 """OPML 导入导出测试。"""
+
 from __future__ import annotations
 
 import pathlib

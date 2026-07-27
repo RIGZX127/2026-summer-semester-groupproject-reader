@@ -5,6 +5,7 @@
 - LLMRouter: 主模型 -> 回退模型路由，async chat_stream() 返回异步生成器
 - api_key 使用 keyring 存储，不存数据库
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
@@ -19,6 +20,7 @@ def _keyring():
     """Lazy-import keyring. Returns None if unavailable (e.g. PyInstaller bundle)."""
     try:
         import keyring
+
         return keyring
     except ImportError:
         return None
@@ -95,9 +97,8 @@ class LLMRouter:
         *,
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        agent_type: str = "unknown",
     ) -> AsyncGenerator[str, None]:
-        """流式 LLM 调用。自动记录 token 用量。
+        """流式 LLM 调用。
 
         Yields:
             每个 chunk 的文本增量（delta.content）。
@@ -122,29 +123,12 @@ class LLMRouter:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
-                stream_options={"include_usage": True},
                 extra_headers=provider.extra_headers or None,
             )
-            usage = None
             async for chunk in stream:
-                if chunk.usage:
-                    usage = chunk.usage
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     yield delta.content
-
-            # ── 记录用量 ──────────────────────────────────────────
-            if usage and self._usage_store is not None:
-                try:
-                    await self._usage_store.record(
-                        provider=provider.name,
-                        model=provider.model,
-                        agent_type=agent_type,
-                        prompt_tokens=usage.prompt_tokens or 0,
-                        completion_tokens=usage.completion_tokens or 0,
-                    )
-                except Exception:
-                    pass
 
             self._primary_failures = 0
             if self._using_fallback:
@@ -152,16 +136,11 @@ class LLMRouter:
 
         except Exception as exc:
             self._primary_failures += 1
-            if (
-                not self._using_fallback
-                and self._fallback
-                and self._primary_failures >= 2
-            ):
+            if not self._using_fallback and self._fallback and self._primary_failures >= 2:
                 self._using_fallback = True
                 self._primary_failures = 0
                 async for chunk in self.chat_stream(
-                    messages, temperature=temperature, max_tokens=max_tokens,
-                    agent_type=agent_type,
+                    messages, temperature=temperature, max_tokens=max_tokens
                 ):
                     yield chunk
                 return
@@ -170,9 +149,7 @@ class LLMRouter:
                 f"failures={self._primary_failures}): {exc}"
             ) from exc
 
-    async def test_connection(
-        self, provider: ProviderConfig
-    ) -> tuple[bool, list[str], str]:
+    async def test_connection(self, provider: ProviderConfig) -> tuple[bool, list[str], str]:
         """测试提供者连接。
 
         Returns:

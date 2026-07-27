@@ -1,4 +1,4 @@
-﻿# store/db.py
+# store/db.py
 """DatabaseManager：SQLite 连接管理器。
 
 职责：
@@ -12,6 +12,7 @@
   - 本模块不提供任何 async 方法；异步包装在各 Store 中完成。
   - 传入 ":memory:" 路径时用于单元测试。
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -30,6 +31,7 @@ class DatabaseManager:
         self._configure()
 
         from store import migrations
+
         migrations.migrate(self._conn)
 
     def _configure(self) -> None:

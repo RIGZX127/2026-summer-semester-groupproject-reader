@@ -1,9 +1,10 @@
-﻿# store/content_store.py
+# store/content_store.py
 """ContentStore：Reader 管线结果缓存的数据访问层。
 
 content 表由 Phase 1 的 migrations.py v1 建立，此 Store 只做 CRUD，
 不包含版本比较逻辑（那是 core/reader/cache.py 的职责）。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -54,9 +55,7 @@ class ContentStore:
     # ── 内部同步方法 ──────────────────────────────────────────────────────
 
     def _sync_get_by_entry(self, entry_id: int) -> ContentRow | None:
-        row = self._conn.execute(
-            "SELECT * FROM content WHERE entry_id = ?", (entry_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM content WHERE entry_id = ?", (entry_id,)).fetchone()
         return _row_to_content(row) if row else None
 
     def _sync_upsert(
@@ -88,21 +87,27 @@ class ContentStore:
                     fetched_at       = excluded.fetched_at
                 RETURNING *
                 """,
-                (entry_id, source_html, cleaned_html, markdown,
-                 reader_version, markdown_version, render_version, now),
+                (
+                    entry_id,
+                    source_html,
+                    cleaned_html,
+                    markdown,
+                    reader_version,
+                    markdown_version,
+                    render_version,
+                    now,
+                ),
             ).fetchone()
         return _row_to_content(row)
 
     def _sync_delete_by_entry(self, entry_id: int) -> None:
         with self._conn:
-            self._conn.execute(
-                "DELETE FROM content WHERE entry_id = ?", (entry_id,)
-            )
+            self._conn.execute("DELETE FROM content WHERE entry_id = ?", (entry_id,))
 
     # ── 公开 async 方法 ───────────────────────────────────────────────────
 
     async def get_by_entry(self, entry_id: int) -> ContentRow | None:
-        loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
+        loop = asyncio.get_running_loop()  # 问题2.1：已更新为非废弃 API
         return await loop.run_in_executor(None, self._sync_get_by_entry, entry_id)
 
     async def upsert(
@@ -115,15 +120,19 @@ class ContentStore:
         markdown_version: int,
         render_version: int,
     ) -> ContentRow:
-        loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
+        loop = asyncio.get_running_loop()  # 问题2.1：已更新为非废弃 API
         return await loop.run_in_executor(
             None,
             self._sync_upsert,
-            entry_id, source_html, cleaned_html, markdown,
-            reader_version, markdown_version, render_version,
+            entry_id,
+            source_html,
+            cleaned_html,
+            markdown,
+            reader_version,
+            markdown_version,
+            render_version,
         )
 
     async def delete_by_entry(self, entry_id: int) -> None:
-        loop = asyncio.get_running_loop()   # 问题2.1：已更新为非废弃 API
+        loop = asyncio.get_running_loop()  # 问题2.1：已更新为非废弃 API
         await loop.run_in_executor(None, self._sync_delete_by_entry, entry_id)
-

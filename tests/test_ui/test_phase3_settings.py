@@ -3,7 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import QSettings
 
 from ui.settings.agent_panel import AgentPanel
+from ui.settings.general_panel import GeneralPanel
 from ui.settings.provider_panel import ProviderPanel
+from ui.settings.settings_dialog import SettingsDialog
 
 
 def _settings(tmp_path) -> QSettings:
@@ -56,3 +58,35 @@ def test_agent_panel_persists_phase3_preferences(tmp_path, qtbot) -> None:
     assert settings.value("agent/auto_summary", type=bool) is True
     assert settings.value("agent/summary_detail") == "detailed"
     assert settings.value("agent/translation_degree", type=int) == 5
+
+
+def test_general_panel_persists_language_and_shows_restart_feedback(tmp_path, qtbot) -> None:
+    settings = _settings(tmp_path)
+    panel = GeneralPanel(settings)
+    qtbot.addWidget(panel)
+
+    panel.language_combo.setCurrentIndex(panel.language_combo.findData("en"))
+    panel.save()
+
+    assert settings.value("ui/language") == "en"
+    assert panel.status_label.text() == "语言设置已保存，重启应用后生效"
+
+
+def test_settings_dialog_places_general_settings_first(tmp_path, qtbot) -> None:
+    dialog = SettingsDialog(_settings(tmp_path))
+    qtbot.addWidget(dialog)
+
+    assert dialog.tabs.widget(0) is dialog.general_panel
+    assert dialog.tabs.tabText(0) == "通用"
+    assert dialog.tabs.count() == 1
+
+
+def test_ai_settings_dialog_contains_only_ai_configuration(tmp_path, qtbot) -> None:
+    dialog = SettingsDialog(_settings(tmp_path), mode="ai")
+    qtbot.addWidget(dialog)
+
+    assert [dialog.tabs.tabText(index) for index in range(dialog.tabs.count())] == [
+        "LLM 提供者",
+        "Agent",
+    ]
+    assert dialog.general_panel is None

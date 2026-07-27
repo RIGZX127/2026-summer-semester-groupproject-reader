@@ -71,6 +71,8 @@ class AgentPanel(QWidget):
         actions.addWidget(self.save_button)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 8)
+        layout.setSpacing(8)
         layout.addWidget(summary_box)
         layout.addWidget(translation_box)
         layout.addWidget(hint)

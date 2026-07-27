@@ -1,5 +1,6 @@
-﻿# tests/test_feed/test_sync.py
+# tests/test_feed/test_sync.py
 """SyncService 单元测试（mock parse_feed，不发网络请求）。"""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -134,7 +135,7 @@ async def test_sync_all_calls_each_feed_and_sums_totals(db) -> None:
         # concurrency=1 串行运行，避免 :memory: DB 的并发锁竞争
         total_new, total_failed = await svc.sync_all(concurrency=1)
 
-    assert total_new == 4   # 2 feeds × 2 entries
+    assert total_new == 4  # 2 feeds × 2 entries
     assert total_failed == 0
     assert call_index["n"] == 2  # 每个 Feed 恰好被解析一次
 

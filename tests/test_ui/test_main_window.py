@@ -128,11 +128,28 @@ def test_main_window_has_three_columns_and_comfortable_minimum(tmp_path, qtbot) 
     assert window.minimumHeight() >= 640
 
 
+def test_main_window_uses_chenxing_brand_name(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    assert window.windowTitle() == "ChenXing"
+
+
 def test_sidebar_icon_opens_settings_without_top_menu(tmp_path, qtbot) -> None:
     window = _window(tmp_path, qtbot)
     assert window.menuBar().actions() == []
     window.sidebar.ai_button.click()
     assert window._settings_dialog is not None
+    assert [
+        window._settings_dialog.tabs.tabText(index)
+        for index in range(window._settings_dialog.tabs.count())
+    ] == ["LLM 提供者", "Agent"]
+
+
+def test_bottom_gear_opens_settings(tmp_path, qtbot) -> None:
+    window = _window(tmp_path, qtbot)
+    window.sidebar.settings_button.click()
+    assert window._settings_dialog is not None
+    assert window._settings_dialog.tabs.count() == 1
+    assert window._settings_dialog.tabs.tabText(0) == "通用"
 
 
 def test_opml_actions_live_in_sidebar_without_top_menu(tmp_path, qtbot) -> None:

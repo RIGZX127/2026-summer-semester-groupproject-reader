@@ -1,11 +1,11 @@
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QInputDialog, QStyleOptionViewItem
+from PySide6.QtWidgets import QInputDialog, QLabel, QStyleOptionViewItem
 
 from store.entry_store import EntryListItem, EntryRow
 from store.feed_store import FeedRow
 from ui.entry_list import EntryListWidget
-from ui.icons import theme_icon
+from ui.icons import export_icon, import_icon, settings_icon, theme_icon
 from ui.reader.reader_view import ReaderView
 from ui.sidebar import Sidebar
 
@@ -27,6 +27,12 @@ def test_sidebar_emits_feed_id_and_exposes_full_title(qtbot) -> None:
     with qtbot.waitSignal(sidebar.feed_selected, timeout=500) as signal:
         sidebar.feed_list.setCurrentRow(0)
     assert signal.args == [1]
+
+
+def test_sidebar_uses_chenxing_brand_name(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+    assert sidebar.findChild(QLabel, "AppTitle").text() == "ChenXing"
 
 
 def test_sidebar_sync_state_has_text_not_only_color(qtbot) -> None:
@@ -54,6 +60,25 @@ def test_sidebar_exposes_compact_ai_settings_entry(qtbot) -> None:
         sidebar.ai_button.click()
 
 
+def test_sidebar_exposes_bottom_settings_button(qtbot) -> None:
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+
+    assert sidebar.settings_button.text() == ""
+    assert sidebar.settings_button.toolTip() == "设置"
+    assert sidebar.settings_button.accessibleName() == "设置"
+    assert sidebar.settings_button.size() == QSize(36, 36)
+    assert sidebar.settings_button.icon().isNull() is False
+    with qtbot.waitSignal(sidebar.settings_requested, timeout=500):
+        sidebar.settings_button.click()
+
+
+def test_settings_icon_has_a_continuous_gear_rim(qtbot) -> None:
+    image = settings_icon().pixmap(QSize(20, 20)).toImage()
+    tooth_edges = ((13, 3), (17, 7), (17, 13), (13, 17), (7, 17), (3, 13), (3, 7), (7, 3))
+    assert all(image.pixelColor(x, y).alpha() > 80 for x, y in tooth_edges)
+
+
 def test_sidebar_exposes_opml_import_and_export_icons(qtbot) -> None:
     sidebar = Sidebar()
     qtbot.addWidget(sidebar)
@@ -69,6 +94,17 @@ def test_sidebar_exposes_opml_import_and_export_icons(qtbot) -> None:
         sidebar.import_opml_button.click()
     with qtbot.waitSignal(sidebar.export_opml_requested, timeout=500):
         sidebar.export_opml_button.click()
+
+
+def test_opml_icons_use_vertical_arrows_and_shared_tray(qtbot) -> None:
+    imported = import_icon().pixmap(QSize(20, 20)).toImage()
+    exported = export_icon().pixmap(QSize(20, 20)).toImage()
+
+    assert imported.pixelColor(10, 16).alpha() > 80
+    assert exported.pixelColor(10, 3).alpha() > 80
+    for x, y in ((3, 12), (3, 16), (17, 12), (17, 16)):
+        assert imported.pixelColor(x, y).alpha() > 80
+        assert exported.pixelColor(x, y).alpha() > 80
 
 
 def test_sidebar_header_has_icon_only_collapse_control(qtbot) -> None:
@@ -163,7 +199,7 @@ def test_entry_search_context_menu_is_localized(qtbot) -> None:
     assert labels == ["复制", "粘贴"]
 
 
-def test_entry_list_uses_dark_bold_unread_and_gray_regular_read_text(qtbot) -> None:
+def test_entry_list_read_state_only_changes_text_color(qtbot) -> None:
     view = EntryListWidget()
     qtbot.addWidget(view)
     view.set_entries([_entry(1), _entry(2, is_read=True)])
@@ -177,7 +213,7 @@ def test_entry_list_uses_dark_bold_unread_and_gray_regular_read_text(qtbot) -> N
     assert unread_option.palette.color(QPalette.ColorRole.Text) != read_option.palette.color(
         QPalette.ColorRole.Text
     )
-    assert unread_option.font.weight() > read_option.font.weight()
+    assert unread_option.font.weight() == read_option.font.weight()
     assert "未读" not in view.entry_list.item(0).text()
     assert "已读" not in view.entry_list.item(1).text()
     assert view.entry_list.item(0).data(Qt.ItemDataRole.AccessibleTextRole).startswith("未读：")

@@ -12,6 +12,7 @@ notes 表由 migrations v1 创建，Schema 为：
 
 所有公开方法均为 async，内部同步操作在 run_in_executor 中执行。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -53,9 +54,7 @@ class NoteStore:
     # ── 内部同步方法 ─────────────────────────────────────────────────
 
     def _sync_get(self, entry_id: int) -> NoteRow | None:
-        row = self._conn.execute(
-            "SELECT * FROM notes WHERE entry_id = ?", (entry_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM notes WHERE entry_id = ?", (entry_id,)).fetchone()
         return _row_to_note(row) if row else None
 
     def _sync_save(self, entry_id: int, body: str) -> NoteRow:
@@ -69,21 +68,15 @@ class NoteStore:
                        updated_at = excluded.updated_at""",
                 (entry_id, body),
             )
-        row = self._conn.execute(
-            "SELECT * FROM notes WHERE entry_id = ?", (entry_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM notes WHERE entry_id = ?", (entry_id,)).fetchone()
         return _row_to_note(row)
 
     def _sync_delete(self, entry_id: int) -> None:
         with self._conn:
-            self._conn.execute(
-                "DELETE FROM notes WHERE entry_id = ?", (entry_id,)
-            )
+            self._conn.execute("DELETE FROM notes WHERE entry_id = ?", (entry_id,))
 
     def _sync_list_all(self) -> list[NoteRow]:
-        rows = self._conn.execute(
-            "SELECT * FROM notes ORDER BY updated_at DESC"
-        ).fetchall()
+        rows = self._conn.execute("SELECT * FROM notes ORDER BY updated_at DESC").fetchall()
         return [_row_to_note(r) for r in rows]
 
     def _sync_list_by_entry_ids(self, entry_ids: list[int]) -> dict[int, NoteRow]:

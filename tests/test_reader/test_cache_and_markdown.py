@@ -1,5 +1,6 @@
-﻿# tests/test_reader/test_cache_and_markdown.py
+# tests/test_reader/test_cache_and_markdown.py
 """Reader cache 版本匹配测试 + markdown 转换测试。"""
+
 from __future__ import annotations
 
 import pathlib
@@ -15,10 +16,12 @@ FIXTURE_CLEAN = (FIXTURE_DIR / "fixture_clean.html").read_text(encoding="utf-8")
 
 # ── Cache 测试 ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_cache_get_hit_on_matching_versions(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-c1", None, "T", "S", "", None)
     cache = ReaderCache(db)
@@ -32,6 +35,7 @@ async def test_cache_get_hit_on_matching_versions(db) -> None:
 async def test_cache_get_miss_on_reader_version_mismatch(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-c2", None, "T", "S", "", None)
     cache = ReaderCache(db)
@@ -44,6 +48,7 @@ async def test_cache_get_miss_on_reader_version_mismatch(db) -> None:
 async def test_cache_get_miss_on_markdown_version_mismatch(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(feed.id, "guid-c3", None, "T", "S", "", None)
     cache = ReaderCache(db)
@@ -60,6 +65,7 @@ async def test_cache_get_miss_when_no_row(db) -> None:
 
 
 # ── Markdown 转换测试 ─────────────────────────────────────────────────────
+
 
 def test_html_to_markdown_atx_headings() -> None:
     result = html_to_markdown("<h1>Main Title</h1><h2>Sub Title</h2>")
@@ -94,7 +100,7 @@ def test_html_to_markdown_data_uri_removed() -> None:
     assert "Text" in result
 
 
-def test_html_to_markdown_fixture_clean(  ) -> None:
+def test_html_to_markdown_fixture_clean() -> None:
     result = html_to_markdown(FIXTURE_CLEAN)
     assert "# Clean Article Title" in result
     assert "## Section One" in result

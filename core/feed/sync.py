@@ -1,4 +1,4 @@
-﻿# core/feed/sync.py
+# core/feed/sync.py
 """SyncService：并发同步所有订阅源，发射 Qt 信号上报进度。
 
 设计决策：
@@ -8,6 +8,7 @@
   - SyncSignals 使用 PySide6 Signal；若 PySide6 不可用（测试环境），
     回退到轻量级 _FallbackSignals（仅持有回调列表）。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,15 +31,17 @@ try:
 
     class SyncSignals(QObject):
         """Feed 同步进度信号集合（PySide6 实现）。"""
-        sync_started = QtSignal(int)        # feed_id
+
+        sync_started = QtSignal(int)  # feed_id
         sync_finished = QtSignal(int, int)  # feed_id, new_count
-        sync_error = QtSignal(int, str)     # feed_id, error_msg
+        sync_error = QtSignal(int, str)  # feed_id, error_msg
         sync_all_done = QtSignal(int, int)  # total_new, total_failed
 
 except ImportError:  # noqa: BLE001
 
     class _CB:  # type: ignore[no-redef]
         """轻量级回调列表，模拟 Qt Signal 的 connect / emit 接口。"""
+
         def __init__(self) -> None:
             self._cbs: list = []
 
@@ -51,6 +54,7 @@ except ImportError:  # noqa: BLE001
 
     class SyncSignals:  # type: ignore[no-redef]
         """Feed 同步进度信号集合（测试用降级实现）。"""
+
         def __init__(self) -> None:
             self.sync_started = _CB()
             self.sync_finished = _CB()

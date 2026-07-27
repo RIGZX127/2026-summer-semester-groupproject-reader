@@ -3,6 +3,7 @@
 
 Phase 2 将在此基础上扩展 mark_read / toggle_star / search / soft_delete 等方法。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,7 +36,7 @@ class EntryListItem:
     id: int
     feed_id: int
     title: str
-    summary_snippet: str   # summary 截取前 120 字符
+    summary_snippet: str  # summary 截取前 120 字符
     author: str
     published_at: str | None
     is_read: bool
@@ -106,9 +107,7 @@ class EntryStore:
         return _row_to_entry(row)
 
     def _sync_get(self, entry_id: int) -> EntryRow | None:
-        row = self._conn.execute(
-            "SELECT * FROM entries WHERE id = ?", (entry_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM entries WHERE id = ?", (entry_id,)).fetchone()
         return _row_to_entry(row) if row else None
 
     def _sync_get_by_ids(self, entry_ids: list[int]) -> list[EntryListItem]:
@@ -181,15 +180,10 @@ class EntryStore:
 
     def _sync_mark_read(self, entry_id: int, value: int) -> None:
         with self._conn:
-            self._conn.execute(
-                "UPDATE entries SET is_read = ? WHERE id = ?", (value, entry_id)
-            )
+            self._conn.execute("UPDATE entries SET is_read = ? WHERE id = ?", (value, entry_id))
 
     def _sync_batch_mark_read(self, feed_id: int, only_before: str | None) -> int:
-        sql = (
-            "UPDATE entries SET is_read = 1 "
-            "WHERE feed_id = ? AND is_deleted = 0 AND is_read = 0"
-        )
+        sql = "UPDATE entries SET is_read = 1 WHERE feed_id = ? AND is_deleted = 0 AND is_read = 0"
         params: list = [feed_id]
         if only_before is not None:
             sql += " AND published_at <= ?"
@@ -246,7 +240,9 @@ class EntryStore:
                     "AND is_deleted = 0 AND feed_id = ? "
                     "ORDER BY published_at DESC LIMIT ? OFFSET ?"
                 )
-                rows = self._conn.execute(sql, (pattern, pattern, feed_id, limit, offset)).fetchall()
+                rows = self._conn.execute(
+                    sql, (pattern, pattern, feed_id, limit, offset)
+                ).fetchall()
             else:
                 sql = (
                     "SELECT id, feed_id, title, summary, author, published_at, "
@@ -259,9 +255,7 @@ class EntryStore:
 
     def _sync_soft_delete(self, entry_id: int) -> None:
         with self._conn:
-            self._conn.execute(
-                "UPDATE entries SET is_deleted = 1 WHERE id = ?", (entry_id,)
-            )
+            self._conn.execute("UPDATE entries SET is_deleted = 1 WHERE id = ?", (entry_id,))
 
     # ── 公开 async 方法 ───────────────────────────────────────────────
 
@@ -275,14 +269,10 @@ class EntryStore:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._sync_mark_read, entry_id, 0)
 
-    async def batch_mark_read(
-        self, feed_id: int, only_before: str | None = None
-    ) -> int:
+    async def batch_mark_read(self, feed_id: int, only_before: str | None = None) -> int:
         """批量标记 feed_id 下所有未读文章为已读。返回实际标记的数量。"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._sync_batch_mark_read, feed_id, only_before
-        )
+        return await loop.run_in_executor(None, self._sync_batch_mark_read, feed_id, only_before)
 
     async def toggle_star(self, entry_id: int) -> bool:
         """切换收藏状态。返回操作后的新状态（True=已收藏）。"""
@@ -298,9 +288,7 @@ class EntryStore:
     ) -> list[EntryListItem]:
         """在标题和摘要中搜索关键词（LIKE，不区分大小写）。支持分页。"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._sync_search, query, feed_id, limit, offset
-        )
+        return await loop.run_in_executor(None, self._sync_search, query, feed_id, limit, offset)
 
     async def soft_delete(self, entry_id: int) -> None:
         """软删除：is_deleted=1，物理数据保留。entry_id 不存在时静默忽略。"""
@@ -346,4 +334,3 @@ class EntryStore:
         """批量软删除多篇文章（is_deleted=1）。"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_batch_soft_delete, list(entry_ids))
-

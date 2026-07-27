@@ -18,6 +18,7 @@
 多篇额外变量：
   entries（列表，每项含上述字段），date（导出日期）
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -28,6 +29,7 @@ from datetime import date as _date
 from typing import Any
 
 import jinja2
+from markdownify import markdownify
 
 from app.paths import bundle_path
 
@@ -38,9 +40,11 @@ _USER_TEMPLATE_DIR = pathlib.Path.home() / ".mercury" / "templates"
 
 # ── 数据契约 ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class EntryDigest:
     """导出所需的文章数据快照，调用方填充后传入。"""
+
     entry_id: int
     title: str
     url: str = ""
@@ -55,6 +59,7 @@ class EntryDigest:
 
 # ── 导出结果 ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class ExportResult:
     ok: bool
@@ -63,6 +68,7 @@ class ExportResult:
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────────
+
 
 def _slugify(text: str, max_len: int = 40) -> str:
     """将标题转换为文件名友好的 slug，保留 CJK 等 Unicode 字符。"""
@@ -97,12 +103,12 @@ def _build_jinja_env() -> jinja2.Environment:
 def _entry_to_ctx(entry: EntryDigest) -> dict[str, Any]:
     """将 EntryDigest 转换为模板上下文字典。"""
     return {
-        "title": entry.title,
+        "title": entry.title or "无标题",
         "url": entry.url,
         "author": entry.author,
-        "published_at": entry.published_at or str(_date.today()),
+        "published_at": entry.published_at,
         "feed_title": entry.feed_title,
-        "summary": entry.summary,
+        "summary": markdownify(entry.summary or "").strip(),
         "notes": entry.notes,
         "tags": entry.tags,
         "content_markdown": entry.content_markdown,
@@ -111,6 +117,7 @@ def _entry_to_ctx(entry: EntryDigest) -> dict[str, Any]:
 
 
 # ── 主类 ──────────────────────────────────────────────────────────────
+
 
 class DigestExporter:
     """Markdown 导出器。无状态，每次导出自动重新扫描模板目录。"""
@@ -149,6 +156,30 @@ class DigestExporter:
         if len(rendered) <= max_chars:
             return rendered
         return textwrap.shorten(rendered, width=max_chars, placeholder="\n…（截断）")
+
+    @staticmethod
+    def preview_multi(
+        entries: list[EntryDigest],
+        template_name: str = "multi.md.j2",
+        max_chars: int | None = None,
+    ) -> str:
+        """Render a multi-entry template without writing a file."""
+        sorted_entries = sorted(entries, key=lambda entry: entry.published_at or "", reverse=True)
+        context = {
+            "entries": [_entry_to_ctx(entry) for entry in sorted_entries],
+            "date": str(_date.today()),
+        }
+        try:
+            env = _build_jinja_env()
+            template = env.get_template(template_name)
+            rendered = template.render(**context)
+        except jinja2.TemplateNotFound:
+            return f"[模板 {template_name!r} 未找到]"
+        except Exception as exc:  # noqa: BLE001
+            return f"[渲染错误：{exc}]"
+        if max_chars is None or len(rendered) <= max_chars:
+            return rendered
+        return rendered[:max_chars].rstrip() + "\n\n…（预览已截断，导出文件完整）"
 
     # ── 单篇导出 ─────────────────────────────────────────────────────
 
@@ -228,9 +259,7 @@ class DigestExporter:
             return ExportResult(ok=False, error=f"无法创建目录：{exc}")
 
         # 按 published_at 降序排列
-        sorted_entries = sorted(
-            entries, key=lambda e: e.published_at or "", reverse=True
-        )
+        sorted_entries = sorted(entries, key=lambda e: e.published_at or "", reverse=True)
 
         ctx = {
             "entries": [_entry_to_ctx(e) for e in sorted_entries],

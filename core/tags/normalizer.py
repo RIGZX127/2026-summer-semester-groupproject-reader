@@ -126,9 +126,7 @@ class TagNormalizer:
         for ch in text:
             cp = ord(ch)
             # CJK Unified Ideographs + Extensions
-            if (0x4E00 <= cp <= 0x9FFF
-                    or 0x3400 <= cp <= 0x4DBF
-                    or 0x20000 <= cp <= 0x2A6DF):
+            if 0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF or 0x20000 <= cp <= 0x2A6DF:
                 result.append(ch)
             else:
                 result.append(ch.lower())

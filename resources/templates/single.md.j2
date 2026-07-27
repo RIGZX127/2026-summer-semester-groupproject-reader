@@ -1,6 +1,6 @@
 ﻿---
 title: "{{ title | replace('"', '\\"') }}"
-date: {{ published_at }}
+date: {{ published_at or date }}
 author: "{{ author }}"
 source: "{{ url }}"
 feed: "{{ feed_title }}"

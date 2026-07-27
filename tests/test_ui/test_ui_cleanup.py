@@ -68,7 +68,7 @@ def test_entry_list_icon_controls_share_global_compact_size(qtbot) -> None:
         view.batch_button,
         view.batch_close_button,
     )
-    assert all(button.width() == button.height() == 30 for button in controls)
+    assert all(button.width() == button.height() == 36 for button in controls)
     assert all(button.iconSize().width() == button.iconSize().height() == 18 for button in controls)
 
 
@@ -95,7 +95,7 @@ def test_sidebar_replaces_verbose_actions_with_icons(qtbot) -> None:
         assert button.toolTip()
         assert button.accessibleName()
         assert button.icon().isNull() is False
-        assert button.size().width() == button.size().height() == 30
+        assert button.size().width() == button.size().height() == 36
         assert button.iconSize().width() == button.iconSize().height() == 18
         assert button.property("immediateToolTip") is True
 
@@ -130,7 +130,7 @@ def test_reader_toolbar_uses_compact_visual_controls(qtbot) -> None:
     assert toolbar.split_button.text() == ""
     assert toolbar.translate_button.text() == ""
     assert toolbar.font_size.toolTip() == f"正文字号：{toolbar.font_size.currentData()}"
-    assert toolbar.font_size.width() == toolbar.theme_combo.width() == 30
+    assert toolbar.font_size.width() == toolbar.theme_combo.width() == 36
     assert toolbar.width_combo.width() == toolbar.theme_combo.width()
     assert toolbar.translation_mode.maximumWidth() <= 92
 

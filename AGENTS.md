@@ -148,6 +148,8 @@ mercury-cross/
 
 ---
 
+项目级 UI 设计技能位于 `skills/mercury-ui-design/SKILL.md`。新增、修改或评审任何 PySide6 界面、主题、Reader 样式、对话框、面板或 UI 测试时必须先加载并遵循该技能。
+
 ## 7. 编码约定
 
 - **语言**：Python 3.11+。代码注释和 docstring 使用英文，与用户沟通使用中文。
@@ -291,20 +293,21 @@ class AgentUIEvent:
 | 模块 | 状态 | 备注 |
 |------|------|------|
 | 项目文档（INIT、AGENTS、PLAN） | ✅ 已完成 | INIT.md、AGENTS.md、PLAN.md |
+| UI 设计技能 | ✅ 已完成 | `skills/mercury-ui-design/SKILL.md`，固化浅/深色、控件、Reader 与验收契约 |
 | 数据库 Schema + 迁移 | 🔲 待开始 | Phase 1 |
 | Feed 解析 + 同步 | 🔲 待开始 | Phase 1 |
-| UI/UX 规范 | 🔲 待开始 | 页面、状态、反馈与接口 |
+| UI/UX 规范 | 🟨 设计与计划完成 | 当前执行 UI-only 计划，不修改其他成员负责的 Core/Store |
 | 基础 UI | 🔲 待开始 | 三栏布局、Feed、文章列表 |
 | Reader 与主题 UI | 🔲 待开始 | 阅读区、模式与主题 |
-| 功能面板 UI | 🟡 进行中 | 摘要、翻译、收藏夹、笔记、标签与 Digest 已接入；AI 设置与 OPML 导入导出已统一到侧栏图标区 |
+| 功能面板 UI | 🔲 待开始 | Agent、标签、笔记、设置 |
 | 国际化与跨平台体验 | 🔲 待开始 | 中文、英文及三平台验收 |
 | Reader 管线 | 🔲 待开始 | Phase 2 |
 | AI Agent 运行时 | 🔲 待开始 | Phase 3 |
 | 摘要 Agent | 🔲 待开始 | Phase 3 |
 | 翻译 Agent | 🔲 待开始 | Phase 3 |
-| 标签系统 | 🟡 进行中 | Store 已完成，文章标签显示与手动管理已接入 |
-| 标签 Agent | 🟡 进行中 | AI 生成与用户确认入口已接入，待跨平台实机验收 |
-| 笔记 + Digest 导出 | 🟡 进行中 | 笔记自动保存、单篇 Markdown 与批量 Digest 已接入；笔记编辑器与标签页已补齐明暗主题对比度 |
+| 标签系统 | 🔲 待开始 | Phase 4 |
+| 标签 Agent | 🔲 待开始 | Phase 4 |
+| 笔记 + Digest 导出 | 🔲 待开始 | Phase 5 |
 | 用量统计 | 🔲 待开始 | Phase 5 |
 | 国际化（i18n） | 🔲 待开始 | Phase 5 |
 | 跨平台 CI | 🔲 待开始 | Phase 6 |
@@ -324,6 +327,9 @@ class AgentUIEvent:
 - **布局与状态持久化**：三栏使用 `QSplitter`，界面状态通过 `QSettings` 恢复。
 - **统一体验规范**：页面状态显式管理，Qt 控件样式集中到 QSS，Reader 样式由 `theme_manager.py` 管理。
 - **国际化前置**：用户可见字符串从首次编写时即接入 Qt 翻译机制。
+- **UI 设计技能化**：后续 UI 功能统一遵循 `mercury-ui-design`；浅色采用暖现代体系，深色采用近黑石墨蓝体系，主题值固定为 `system/light/dark`，组件不得自建局部色板或第二套主题状态。
+- **Reader 布局与 AI 助手**：应用布局固定为三栏、双栏和沉浸阅读三个直接切换状态；Reader 右侧使用可折叠 AI 助手抽屉承载摘要、翻译与本地正文清洗，正文清洗不使用 LLM。
+- **UI 跨成员冲突记录**：UI 集成发现的文件、接口或职责冲突统一记录在 `docs/UI_INTEGRATION_ISSUES.md`，UI 不得通过修改其他成员负责的 Core/Store 静默绕过。
 
 ---
 
@@ -345,3 +351,13 @@ LLM 集成默认配置（本地 Ollama 或 LMStudio）：
 - `base_url`：`http://localhost:11434/v1`
 - `api_key`：`local`
 - `model`：`qwen3`
+
+---
+
+## 17. 最新里程碑
+
+- 用户可见品牌名称已统一为 `ChenXing`，现有数据目录与数据库名称保持兼容。
+- Reader、摘要/笔记折叠、AI 未配置横幅、设置空状态、动态标签高度和 Digest 预览问题已完成修复。
+- 左下角齿轮只显示通用语言设置；顶部 AI 入口只显示提供者、Agent 与用量配置。
+- 全局 Qt 图标已统一为圆角线性体系；侧栏 OPML 导入/导出采用“进入托盘 / 离开托盘”的垂直箭头语义。
+- 当前完整回归为 265 项测试通过。

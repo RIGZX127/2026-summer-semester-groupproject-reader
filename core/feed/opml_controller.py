@@ -4,6 +4,7 @@
 将 OPML 解析/生成函数与 FeedStore 连接起来，
 提供完整的导入去重汇总和导出流程。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 @dataclass
 class ImportResult:
     """OPML 导入结果汇总。"""
+
     success: list[FeedUrl] = field(default_factory=list)
     skipped: list[FeedUrl] = field(default_factory=list)
     failed: list[tuple[FeedUrl, str]] = field(default_factory=list)
@@ -43,6 +45,7 @@ class OPMLController:
     @property
     def _feed_store(self):
         from store.feed_store import FeedStore
+
         if "_cache_feed_store" not in self.__dict__:
             self.__dict__["_cache_feed_store"] = FeedStore(self._db)
         return self.__dict__["_cache_feed_store"]
@@ -57,9 +60,7 @@ class OPMLController:
 
         # 读取文件
         try:
-            xml_str = await loop.run_in_executor(
-                None, pathlib.Path(path).read_text, "utf-8"
-            )
+            xml_str = await loop.run_in_executor(None, pathlib.Path(path).read_text, "utf-8")
         except FileNotFoundError:
             raise ValueError(f"OPML 文件不存在：{path}") from None
         except OSError as exc:
@@ -92,9 +93,7 @@ class OPMLController:
 
         return result
 
-    async def import_urls(
-        self, items: list[tuple[str, str]]
-    ) -> ImportResult:
+    async def import_urls(self, items: list[tuple[str, str]]) -> ImportResult:
         """直接导入 URL+标题列表（由对话框预解析后传入）。
 
         Returns:

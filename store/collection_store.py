@@ -9,6 +9,7 @@
 
 所有公开方法 async，内部同步方法在 executor 中执行。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -94,9 +95,7 @@ class CollectionStore:
         return _row_to_collection(row) if row else None
 
     def _sync_list_all(self) -> list[CollectionRow]:
-        rows = self._conn.execute(
-            "SELECT * FROM collections ORDER BY sort_order, name"
-        ).fetchall()
+        rows = self._conn.execute("SELECT * FROM collections ORDER BY sort_order, name").fetchall()
         return [_row_to_collection(r) for r in rows]
 
     def _sync_update(
@@ -137,9 +136,7 @@ class CollectionStore:
 
     def _sync_delete(self, collection_id: int) -> None:
         with self._conn:
-            self._conn.execute(
-                "DELETE FROM collections WHERE id = ?", (collection_id,)
-            )
+            self._conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
 
     # ── Entry associations ──────────────────────────────────────────────
 
@@ -228,14 +225,10 @@ class CollectionStore:
         )
 
     async def get(self, collection_id: int) -> CollectionRow | None:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_get, collection_id
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_get, collection_id)
 
     async def get_default(self) -> CollectionRow | None:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_get_default
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_get_default)
 
     async def list_all(self) -> list[CollectionRow]:
         return await asyncio.get_running_loop().run_in_executor(
@@ -255,9 +248,7 @@ class CollectionStore:
         )
 
     async def delete(self, collection_id: int) -> None:
-        await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_delete, collection_id
-        )
+        await asyncio.get_running_loop().run_in_executor(None, self._sync_delete, collection_id)
 
     async def add_entry(self, collection_id: int, entry_id: int) -> None:
         await asyncio.get_running_loop().run_in_executor(
@@ -296,6 +287,4 @@ class CollectionStore:
         )
 
     async def quick_unstar(self, entry_id: int) -> None:
-        await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_quick_unstar, entry_id
-        )
+        await asyncio.get_running_loop().run_in_executor(None, self._sync_quick_unstar, entry_id)

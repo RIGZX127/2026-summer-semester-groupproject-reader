@@ -69,7 +69,7 @@ def test_font_size_control_is_icon_only_with_numeric_popup(qtbot) -> None:
     qtbot.addWidget(toolbar)
 
     assert toolbar.font_size.property("compactIcon") is True
-    assert toolbar.font_size.width() == toolbar.font_size.height() == 30
+    assert toolbar.font_size.width() == toolbar.font_size.height() == 36
     assert [
         toolbar.font_size.itemData(index) for index in range(toolbar.font_size.count())
     ] == list(range(14, 25))
@@ -87,7 +87,7 @@ def test_theme_and_width_controls_use_clean_icon_style(qtbot) -> None:
     for control in (toolbar.font_size, toolbar.theme_combo, toolbar.width_combo):
         assert isinstance(control, PopupIconButton)
         assert control.property("compactIcon") is True
-        assert control.width() == control.height() == 30
+        assert control.width() == control.height() == 36
         assert control.objectName() == "ReaderPopupButton"
 
     assert [toolbar.theme_combo.itemText(index) for index in range(3)] == [
@@ -114,7 +114,7 @@ def test_toolbar_icon_controls_share_one_size(qtbot) -> None:
         toolbar.width_combo,
         toolbar.focus_button,
     )
-    assert all(control.size() == QSize(30, 30) for control in controls)
+    assert all(control.size() == QSize(36, 36) for control in controls)
     assert all(control.iconSize() == QSize(18, 18) for control in controls)
 
 

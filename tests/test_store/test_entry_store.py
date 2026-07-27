@@ -1,5 +1,6 @@
-﻿# tests/test_store/test_entry_store.py
+# tests/test_store/test_entry_store.py
 """EntryStore 单元测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -8,9 +9,7 @@ from store.entry_store import EntryStore
 
 
 @pytest.mark.asyncio
-async def test_add_entry_returns_correct_fields(
-    feed_store, entry_store: EntryStore
-) -> None:
+async def test_add_entry_returns_correct_fields(feed_store, entry_store: EntryStore) -> None:
     feed = await feed_store.add("https://example.com/feed")
     entry = await entry_store.add(
         feed.id,
@@ -45,16 +44,12 @@ async def test_get_nonexistent_entry_returns_none(entry_store: EntryStore) -> No
 
 
 @pytest.mark.asyncio
-async def test_list_by_feed_excludes_deleted(
-    feed_store, entry_store: EntryStore
-) -> None:
+async def test_list_by_feed_excludes_deleted(feed_store, entry_store: EntryStore) -> None:
     feed = await feed_store.add("https://example.com/feed")
     await entry_store.add(feed.id, "guid-1", title="Visible")
     entry2 = await entry_store.add(feed.id, "guid-2", title="Hidden")
     # 直接 SQL 标记为删除（Phase 2 提供 soft_delete 接口前的测试辅助）
-    entry_store._conn.execute(
-        "UPDATE entries SET is_deleted = 1 WHERE id = ?", (entry2.id,)
-    )
+    entry_store._conn.execute("UPDATE entries SET is_deleted = 1 WHERE id = ?", (entry2.id,))
     entry_store._conn.commit()
     items = await entry_store.list_by_feed(feed.id)
     assert len(items) == 1
@@ -75,9 +70,7 @@ async def test_guid_exists_false_before_add(feed_store, entry_store: EntryStore)
 
 
 @pytest.mark.asyncio
-async def test_summary_snippet_truncated_at_120(
-    feed_store, entry_store: EntryStore
-) -> None:
+async def test_summary_snippet_truncated_at_120(feed_store, entry_store: EntryStore) -> None:
     feed = await feed_store.add("https://example.com/feed")
     long_summary = "A" * 200
     await entry_store.add(feed.id, "guid-long", summary=long_summary)

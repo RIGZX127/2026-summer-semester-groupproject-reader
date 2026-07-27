@@ -1,4 +1,4 @@
-﻿# main.py
+# main.py
 """Mercury Cross-Platform RSS Reader — 程序唯一入口。
 
 职责：
@@ -7,6 +7,7 @@
   3. 实例化 MercuryApp，打开主窗口。
   4. 顶层异常保护：未预期异常打印堆栈后以退出码 1 退出。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,7 +75,7 @@ def main() -> int:
 
     app = QApplication(sys.argv)
     app.setOrganizationName("Mercury")
-    app.setApplicationName("Mercury")
+    app.setApplicationName("ChenXing")
 
     # qasync: QEventLoop must be created BEFORE any async-using widgets
     loop = qasync.QEventLoop(app)
@@ -100,11 +101,7 @@ def main() -> int:
     print("[Mercury] Main window created.", flush=True)
 
     print("[Mercury] Showing window...", flush=True)
-    # 短暂隐藏 → show → 强制渲染 → 再显示，消除 QWebEngineView 白色闪烁
-    window.setWindowOpacity(0)
     window.show()
-    QApplication.processEvents()
-    window.setWindowOpacity(1)
     print("[Mercury] Window shown. Entering event loop.", flush=True)
 
     try:
@@ -123,15 +120,18 @@ def _show_fatal_error(title: str, detail: str) -> None:
     # Write to log file on desktop for easy access
     try:
         log_path = Path.home() / "Desktop" / "mercury_startup_error.log"
-        log_path.write_text(f"=== Mercury Startup Error ===\n{title}\n{detail}\n\n{tb}", encoding="utf-8")
+        log_path.write_text(
+            f"=== Mercury Startup Error ===\n{title}\n{detail}\n\n{tb}", encoding="utf-8"
+        )
         print(f"[Mercury] Error log written to: {log_path}", flush=True)
     except Exception:
         pass
 
     from PySide6.QtWidgets import QMessageBox
+
     msg = QMessageBox()
     msg.setIcon(QMessageBox.Icon.Critical)
-    msg.setWindowTitle(f"Mercury — {title}")
+    msg.setWindowTitle(f"ChenXing — {title}")
     msg.setText(f"启动失败：{title}\n\n{detail}")
     msg.setDetailedText(tb)
     msg.setStandardButtons(QMessageBox.StandardButton.Ok)

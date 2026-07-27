@@ -4,6 +4,7 @@
 80ms 合并窗口：收到的 chunk 先累积，定时器到期后合并输出。
 所有 Agent 必须通过此缓冲器发送 UI 信号，不得绕过。
 """
+
 from __future__ import annotations
 
 import asyncio

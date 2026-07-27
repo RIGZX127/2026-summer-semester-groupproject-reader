@@ -96,14 +96,10 @@ class CollectionsWidget(QWidget):
         _previous: QListWidgetItem | None,
     ) -> None:
         if current is not None:
-            self.collection_selected.emit(
-                int(current.data(Qt.ItemDataRole.UserRole))
-            )
+            self.collection_selected.emit(int(current.data(Qt.ItemDataRole.UserRole)))
 
     def _request_create(self) -> None:
-        name, accepted = QInputDialog.getText(
-            self, self.tr("新建收藏夹"), self.tr("收藏夹名称")
-        )
+        name, accepted = QInputDialog.getText(self, self.tr("新建收藏夹"), self.tr("收藏夹名称"))
         name = name.strip()
         if accepted and name:
             self.create_requested.emit(name)

@@ -7,9 +7,19 @@
 {% for entry in entries %}
 ## {{ loop.index }}. {{ entry.title }}
 
+{% if entry.feed_title and entry.url %}
 - **来源**：[{{ entry.feed_title }}]({{ entry.url }})
+{% elif entry.feed_title %}
+- **来源**：{{ entry.feed_title }}
+{% elif entry.url %}
+- **来源**：{{ entry.url }}
+{% endif %}
+{% if entry.author %}
 - **作者**：{{ entry.author }}
+{% endif %}
+{% if entry.published_at %}
 - **发布时间**：{{ entry.published_at }}
+{% endif %}
 {% if entry.tags %}- **标签**：{{ entry.tags | join(", ") }}{% endif %}
 
 {{ entry.summary }}

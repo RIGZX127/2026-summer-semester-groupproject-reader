@@ -1,4 +1,5 @@
 """Dialog for collecting and validating a Feed URL."""
+
 from __future__ import annotations
 
 from urllib.parse import urlparse

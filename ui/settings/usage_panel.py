@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -38,6 +39,7 @@ class UsagePanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("UsagePanel")
 
         title = QLabel(self.tr("LLM 用量统计"))
         title.setObjectName("SectionTitle")
@@ -58,6 +60,10 @@ class UsagePanel(QWidget):
         # ── Breakdown grid ─────────────────────────────────────────────
         breakdown_label = QLabel(self.tr("按 Agent 类型"))
         breakdown_label.setObjectName("SidebarSection")
+        self.empty_state = QLabel(self.tr("暂无调用记录"))
+        self.empty_state.setObjectName("UsageEmptyState")
+        self.empty_state.setWordWrap(True)
+        self.empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._grid = QGridLayout()
         self._grid.setSpacing(4)
@@ -72,6 +78,7 @@ class UsagePanel(QWidget):
         content_layout.addWidget(hint)
         content_layout.addLayout(cards)
         content_layout.addWidget(breakdown_label)
+        content_layout.addWidget(self.empty_state)
         content_layout.addLayout(self._grid)
         content_layout.addStretch()
 
@@ -97,6 +104,7 @@ class UsagePanel(QWidget):
         self._calls_card.findChild(QLabel).setText(f"{calls:,}")
         self._prompt_card.findChild(QLabel).setText(f"{prompt_tokens:,}")
         self._completion_card.findChild(QLabel).setText(f"{completion_tokens:,}")
+        self.empty_state.setVisible(calls == 0)
 
     def set_breakdown(
         self,
@@ -136,3 +144,4 @@ class UsagePanel(QWidget):
                 if col == 0:
                     lbl.setObjectName("UsageAgentTypeLabel")
                 self._grid.addWidget(lbl, row_idx, col)
+        self.empty_state.setVisible(not rows)

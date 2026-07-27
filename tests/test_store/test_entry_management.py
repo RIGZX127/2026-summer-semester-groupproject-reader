@@ -1,5 +1,6 @@
-﻿# tests/test_store/test_entry_management.py
+# tests/test_store/test_entry_management.py
 """Phase 2.2 — EntryStore 文章管理扩展测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -9,17 +10,37 @@ async def _setup(db):
     """创建 feed + 3 篇文章（1 已读，2 未读），返回 (feed, entries)。"""
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed")
     es = EntryStore(db)
-    e1 = await es.add(feed.id, "g1", None, "Python Tutorial", "Learn Python programming", "Alice", "2024-01-01T00:00:00Z")
-    e2 = await es.add(feed.id, "g2", None, "JavaScript Basics", "JS for beginners", "Bob",   "2024-01-02T00:00:00Z")
-    e3 = await es.add(feed.id, "g3", None, "Python Advanced",  "Advanced python topics", "Alice", "2024-01-03T00:00:00Z")
+    e1 = await es.add(
+        feed.id,
+        "g1",
+        None,
+        "Python Tutorial",
+        "Learn Python programming",
+        "Alice",
+        "2024-01-01T00:00:00Z",
+    )
+    e2 = await es.add(
+        feed.id, "g2", None, "JavaScript Basics", "JS for beginners", "Bob", "2024-01-02T00:00:00Z"
+    )
+    e3 = await es.add(
+        feed.id,
+        "g3",
+        None,
+        "Python Advanced",
+        "Advanced python topics",
+        "Alice",
+        "2024-01-03T00:00:00Z",
+    )
     # 让 e1 预先已读
     await es.mark_read(e1.id)
     return feed, es, [e1, e2, e3]
 
 
 # ── mark_read / mark_unread ───────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_mark_read_persists(db) -> None:
@@ -42,6 +63,7 @@ async def test_mark_unread_persists(db) -> None:
 @pytest.mark.asyncio
 async def test_mark_read_nonexistent_does_not_raise(db) -> None:
     from store.entry_store import EntryStore
+
     es = EntryStore(db)
     await es.mark_read(99999)  # 不存在，应静默忽略
 
@@ -49,6 +71,7 @@ async def test_mark_read_nonexistent_does_not_raise(db) -> None:
 @pytest.mark.asyncio
 async def test_unread_count_decrements_after_mark_read(db) -> None:
     from store.feed_store import FeedStore
+
     feed, es, entries = await _setup(db)
     fs = FeedStore(db)
     before = await fs.unread_count(feed.id)
@@ -58,6 +81,7 @@ async def test_unread_count_decrements_after_mark_read(db) -> None:
 
 
 # ── batch_mark_read ───────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_batch_mark_read_returns_correct_count(db) -> None:
@@ -71,6 +95,7 @@ async def test_batch_mark_read_returns_correct_count(db) -> None:
 async def test_batch_mark_read_only_affects_target_feed(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     fs = FeedStore(db)
     feed1 = await fs.add("https://a.com/feed")
     feed2 = await fs.add("https://b.com/feed")
@@ -86,6 +111,7 @@ async def test_batch_mark_read_only_affects_target_feed(db) -> None:
 async def test_batch_mark_read_excludes_deleted(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     feed = await FeedStore(db).add("https://example.com/feed2")
     es = EntryStore(db)
     e = await es.add(feed.id, "del-g1", None, "Del", "s", "", None)
@@ -105,6 +131,7 @@ async def test_batch_mark_read_only_before_filter(db) -> None:
 
 # ── toggle_star ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_toggle_star_false_to_true(db) -> None:
     _, es, entries = await _setup(db)
@@ -119,7 +146,7 @@ async def test_toggle_star_false_to_true(db) -> None:
 async def test_toggle_star_true_to_false(db) -> None:
     _, es, entries = await _setup(db)
     e2 = entries[1]
-    await es.toggle_star(e2.id)   # False → True
+    await es.toggle_star(e2.id)  # False → True
     new_state = await es.toggle_star(e2.id)  # True → False
     assert new_state is False
     row = await es.get(e2.id)
@@ -129,11 +156,13 @@ async def test_toggle_star_true_to_false(db) -> None:
 @pytest.mark.asyncio
 async def test_toggle_star_nonexistent_returns_false(db) -> None:
     from store.entry_store import EntryStore
+
     result = await EntryStore(db).toggle_star(99999)
     assert result is False
 
 
 # ── search ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_search_returns_matching_by_title(db) -> None:
@@ -165,6 +194,7 @@ async def test_search_case_insensitive(db) -> None:
 async def test_search_with_feed_id_scope(db) -> None:
     from store.entry_store import EntryStore
     from store.feed_store import FeedStore
+
     fs = FeedStore(db)
     feed1 = await fs.add("https://a.com/feed")
     feed2 = await fs.add("https://b.com/feed")
@@ -203,6 +233,7 @@ async def test_search_pagination(db) -> None:
 
 
 # ── soft_delete ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_soft_delete_hides_from_list_by_feed(db) -> None:

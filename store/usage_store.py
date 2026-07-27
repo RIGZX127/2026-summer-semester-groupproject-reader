@@ -4,6 +4,7 @@
 llm_usage 表由 migrations v1 定义。
 Phase 5.3 扩展聚合查询方法。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,6 +30,7 @@ class UsageRecord:
 @dataclass
 class UsageSummary:
     """指定时间范围内的总量汇总。"""
+
     total_calls: int
     total_prompt_tokens: int
     total_completion_tokens: int
@@ -37,6 +39,7 @@ class UsageSummary:
 @dataclass
 class GroupedUsage:
     """按 provider / model / agent_type 分组统计。"""
+
     key: str
     calls: int
     prompt_tokens: int
@@ -46,6 +49,7 @@ class GroupedUsage:
 @dataclass
 class DailyUsage:
     """单日用量时间线。"""
+
     date: str
     calls: int
     prompt_tokens: int
@@ -98,9 +102,7 @@ class UsageStore:
     # ── 聚合查询（Issue 5）─────────────────────────────────────────────
 
     @staticmethod
-    def _time_clause_and_params(
-        since: str | None, until: str | None
-    ) -> tuple[str, list]:
+    def _time_clause_and_params(since: str | None, until: str | None) -> tuple[str, list]:
         """Build WHERE clause fragments for time range filtering.
 
         Returns:
@@ -118,9 +120,7 @@ class UsageStore:
             return "WHERE " + " AND ".join(conditions), params
         return "", []
 
-    def _sync_get_summary(
-        self, since: str | None = None, until: str | None = None
-    ) -> UsageSummary:
+    def _sync_get_summary(self, since: str | None = None, until: str | None = None) -> UsageSummary:
         clause, params = self._time_clause_and_params(since, until)
         row = self._conn.execute(
             f"SELECT COUNT(*), IFNULL(SUM(prompt_tokens), 0), "
@@ -184,9 +184,7 @@ class UsageStore:
 
     # ── Async wrappers ────────────────────────────────────────────────
 
-    async def get_summary(
-        self, since: str | None = None, until: str | None = None
-    ) -> UsageSummary:
+    async def get_summary(self, since: str | None = None, until: str | None = None) -> UsageSummary:
         return await asyncio.get_running_loop().run_in_executor(
             None, self._sync_get_summary, since, until
         )

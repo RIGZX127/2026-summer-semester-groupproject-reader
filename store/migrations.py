@@ -1,4 +1,4 @@
-﻿# store/migrations.py
+# store/migrations.py
 """版本化数据库迁移管理器。
 
 规则：
@@ -6,6 +6,7 @@
   - 每个迁移函数在独立事务中执行；失败则回滚该迁移，已完成的不受影响。
   - migrate() 幂等：已达目标版本则直接返回。
 """
+
 from __future__ import annotations
 
 import sqlite3

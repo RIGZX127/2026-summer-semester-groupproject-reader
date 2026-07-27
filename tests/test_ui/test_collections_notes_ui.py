@@ -48,8 +48,18 @@ class FakeEntryStore:
 
     async def get(self, entry_id: int):
         return EntryRow(
-            entry_id, 1, f"g-{entry_id}", None, f"Entry {entry_id}", "Summary",
-            "Author", "now", True, False, False, "now",
+            entry_id,
+            1,
+            f"g-{entry_id}",
+            None,
+            f"Entry {entry_id}",
+            "Summary",
+            "Author",
+            "now",
+            True,
+            False,
+            False,
+            "now",
         )
 
     async def toggle_star(self, entry_id: int) -> bool:

@@ -1,5 +1,6 @@
-﻿# core/feed/parser.py
+# core/feed/parser.py
 """Feed 解析器：将 RSS/Atom/JSON Feed URL 解析为 FeedData dataclass。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -63,16 +64,18 @@ def _parse_blocking(url: str, raw_content: bytes) -> FeedData:
             raw_summary = e.content[0].get("value", "")
         elif e.get("summary"):
             raw_summary = e.get("summary", "")
-        entries.append(EntryData(
-            guid=guid,
-            url=e.get("link"),
-            title=e.get("title", "") or "",
-            summary=raw_summary,
-            author=e.get("author", "") or "",
-            published_at=_time_struct_to_iso(
-                e.get("published_parsed") or e.get("updated_parsed")
-            ),
-        ))
+        entries.append(
+            EntryData(
+                guid=guid,
+                url=e.get("link"),
+                title=e.get("title", "") or "",
+                summary=raw_summary,
+                author=e.get("author", "") or "",
+                published_at=_time_struct_to_iso(
+                    e.get("published_parsed") or e.get("updated_parsed")
+                ),
+            )
+        )
     return FeedData(url=url, title=feed_title, description=feed_desc, entries=entries)
 
 

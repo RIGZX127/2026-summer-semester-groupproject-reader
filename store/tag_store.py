@@ -10,6 +10,7 @@
 
 所有公开方法 async，内部同步方法在 executor 中执行。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -99,9 +100,7 @@ class TagStore:
         return _row_to_tag(row)
 
     def _sync_get(self, tag_id: int) -> TagRow | None:
-        row = self._conn.execute(
-            "SELECT * FROM tags WHERE id = ?", (tag_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM tags WHERE id = ?", (tag_id,)).fetchone()
         return _row_to_tag(row) if row else None
 
     def _sync_get_by_name(self, normalized_name: str) -> TagRow | None:
@@ -122,8 +121,7 @@ class TagStore:
 
     def _sync_search(self, query: str) -> list[TagRow]:
         rows = self._conn.execute(
-            "SELECT * FROM tags WHERE name LIKE ? OR normalized_name LIKE ? "
-            "ORDER BY name LIMIT 20",
+            "SELECT * FROM tags WHERE name LIKE ? OR normalized_name LIKE ? ORDER BY name LIMIT 20",
             (f"%{query}%", f"%{query}%"),
         ).fetchall()
         return [_row_to_tag(r) for r in rows]
@@ -152,9 +150,7 @@ class TagStore:
     def _sync_set_entry_tags(self, entry_id: int, tag_ids: list[int]) -> None:
         """原子替换文章的全部标签。"""
         with self._conn:
-            self._conn.execute(
-                "DELETE FROM entry_tags WHERE entry_id = ?", (entry_id,)
-            )
+            self._conn.execute("DELETE FROM entry_tags WHERE entry_id = ?", (entry_id,))
             self._conn.executemany(
                 "INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) VALUES (?, ?)",
                 [(entry_id, tid) for tid in tag_ids],
@@ -186,9 +182,7 @@ class TagStore:
 
     # ── Batch operations ────────────────────────────────────────────────
 
-    def _sync_batch_tag(
-        self, entry_ids: list[int], tag_names: list[str]
-    ) -> dict[str, int]:
+    def _sync_batch_tag(self, entry_ids: list[int], tag_names: list[str]) -> dict[str, int]:
         """批量给多篇文章打多个标签。
 
         Returns:
@@ -222,9 +216,7 @@ class TagStore:
 
     def _sync_remove_alias(self, alias: str) -> bool:
         with self._conn:
-            cur = self._conn.execute(
-                "DELETE FROM tag_aliases WHERE alias = ?", (alias,)
-            )
+            cur = self._conn.execute("DELETE FROM tag_aliases WHERE alias = ?", (alias,))
             return cur.rowcount > 0
 
     def _sync_list_aliases(self) -> list[TagAliasRow]:
@@ -277,9 +269,7 @@ class TagStore:
         return await loop.run_in_executor(None, self._sync_create, name, nn)
 
     async def get(self, tag_id: int) -> TagRow | None:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_get, tag_id
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_get, tag_id)
 
     async def get_by_name(self, normalized_name: str) -> TagRow | None:
         return await asyncio.get_running_loop().run_in_executor(
@@ -287,19 +277,13 @@ class TagStore:
         )
 
     async def list_all(self) -> list[TagWithCount]:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_list_all
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_list_all)
 
     async def search(self, query: str) -> list[TagRow]:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_search, query
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_search, query)
 
     async def delete(self, tag_id: int) -> bool:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_delete, tag_id
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_delete, tag_id)
 
     async def add_to_entry(self, entry_id: int, tag_id: int) -> None:
         await asyncio.get_running_loop().run_in_executor(
@@ -326,9 +310,7 @@ class TagStore:
             None, self._sync_get_entries_by_tag, tag_id, limit
         )
 
-    async def batch_tag(
-        self, entry_ids: list[int], tag_names: list[str]
-    ) -> dict[str, int]:
+    async def batch_tag(self, entry_ids: list[int], tag_names: list[str]) -> dict[str, int]:
         return await asyncio.get_running_loop().run_in_executor(
             None, self._sync_batch_tag, entry_ids, tag_names
         )
@@ -344,14 +326,10 @@ class TagStore:
         )
 
     async def list_aliases(self) -> list[TagAliasRow]:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_list_aliases
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_list_aliases)
 
     async def get_alias_map(self) -> dict[str, str]:
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_get_alias_map
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self._sync_get_alias_map)
 
     async def add_temp_tags(self, entry_id: int, tag_names: list[str]) -> list[TagRow]:
         return await asyncio.get_running_loop().run_in_executor(

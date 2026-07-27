@@ -27,6 +27,6 @@ def test_application_stylesheet_has_reader_toolbar_control_states() -> None:
     assert 'QSpinBox[readerControl="true"]' in qss
     assert "QPushButton:checked" in qss
     assert "QPushButton#ReaderPopupButton" in qss
-    assert "min-width: 28px; max-width: 28px" in qss
+    assert "min-width: 36px; max-width: 36px" in qss
     assert "padding: 0; background" in qss
     assert "QWidget#SummaryHeaderBar" in qss

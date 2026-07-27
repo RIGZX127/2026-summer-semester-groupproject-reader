@@ -50,6 +50,8 @@ class ProviderPanel(QWidget):
         self.save_button.setProperty("buttonRole", "primary")
 
         form = QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setVerticalSpacing(8)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         form.addRow(self.tr("名称"), self.name_edit)
         form.addRow(self.tr("服务地址"), self.base_url_edit)
@@ -61,6 +63,8 @@ class ProviderPanel(QWidget):
         actions.addWidget(self.test_button)
         actions.addWidget(self.save_button)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 8)
+        layout.setSpacing(8)
         layout.addLayout(form)
         layout.addLayout(actions)
         layout.addStretch()

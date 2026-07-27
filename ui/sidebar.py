@@ -27,6 +27,7 @@ from ui.icons import (
     export_icon,
     feed_icon,
     import_icon,
+    settings_icon,
     sidebar_icon,
     sync_icon,
 )
@@ -47,6 +48,7 @@ class Sidebar(QWidget):
     feed_rename_requested = Signal(int, str)
     feed_delete_requested = Signal(int)
     ai_settings_requested = Signal()
+    settings_requested = Signal()
     import_opml_requested = Signal()
     export_opml_requested = Signal()
     collapse_requested = Signal()
@@ -58,7 +60,7 @@ class Sidebar(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumWidth(210)
 
-        title = QLabel("Mercury")
+        title = QLabel(self.tr("ChenXing"))
         title.setObjectName("AppTitle")
         self.collapse_button = QPushButton()
         self.collapse_button.setObjectName("SidebarCollapseButton")
@@ -109,26 +111,26 @@ class Sidebar(QWidget):
         self.import_opml_button = QPushButton()
         self.import_opml_button.setObjectName("SidebarActionButton")
         self.import_opml_button.setIcon(import_icon())
-        self.import_opml_button.setIconSize(
-            QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE)
-        )
-        self.import_opml_button.setFixedSize(
-            COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE
-        )
+        self.import_opml_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.import_opml_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
         self.import_opml_button.setAccessibleName(self.tr("导入 OPML"))
         self.import_opml_button.setToolTip(self.tr("导入 OPML"))
 
         self.export_opml_button = QPushButton()
         self.export_opml_button.setObjectName("SidebarActionButton")
         self.export_opml_button.setIcon(export_icon())
-        self.export_opml_button.setIconSize(
-            QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE)
-        )
-        self.export_opml_button.setFixedSize(
-            COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE
-        )
+        self.export_opml_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.export_opml_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
         self.export_opml_button.setAccessibleName(self.tr("导出 OPML"))
         self.export_opml_button.setToolTip(self.tr("导出 OPML"))
+
+        self.settings_button = QPushButton()
+        self.settings_button.setObjectName("SidebarActionButton")
+        self.settings_button.setIcon(settings_icon())
+        self.settings_button.setIconSize(QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
+        self.settings_button.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
+        self.settings_button.setAccessibleName(self.tr("设置"))
+        self.settings_button.setToolTip(self.tr("设置"))
 
         for button in (
             self.collapse_button,
@@ -137,6 +139,7 @@ class Sidebar(QWidget):
             self.ai_button,
             self.import_opml_button,
             self.export_opml_button,
+            self.settings_button,
         ):
             enable_immediate_tooltip(button)
 
@@ -184,7 +187,7 @@ class Sidebar(QWidget):
         self.tag_filter_label.setObjectName("TagFilterLabel")
         self.tag_filter_clear_btn = QPushButton("×")
         self.tag_filter_clear_btn.setObjectName("TagFilterClear")
-        self.tag_filter_clear_btn.setFixedSize(24, 24)
+        self.tag_filter_clear_btn.setFixedSize(COMPACT_CONTROL_SIZE, COMPACT_CONTROL_SIZE)
         self.tag_filter_clear_btn.setToolTip(self.tr("清除标签筛选"))
         self.tag_filter_clear_btn.clicked.connect(self.tag_filter_cleared)
         filter_layout.addWidget(self.tag_filter_label)
@@ -201,10 +204,16 @@ class Sidebar(QWidget):
         layout.addWidget(self.tag_filter_bar)
         self.collections = CollectionsWidget(self)
         layout.addWidget(self.collections, 1)
+        settings_row = QHBoxLayout()
+        settings_row.setContentsMargins(0, 0, 0, 0)
+        settings_row.addWidget(self.settings_button)
+        settings_row.addStretch()
+        layout.addLayout(settings_row)
 
         self.add_button.clicked.connect(self.add_feed_requested)
         self.sync_button.clicked.connect(self._show_sync_menu)
         self.ai_button.clicked.connect(self.ai_settings_requested)
+        self.settings_button.clicked.connect(self.settings_requested)
         self.import_opml_button.clicked.connect(self.import_opml_requested)
         self.export_opml_button.clicked.connect(self.export_opml_requested)
         self.collapse_button.clicked.connect(self.collapse_requested)

@@ -92,6 +92,7 @@ def _build_agent_runtime(
 
     # ── 模板加载器 ──────────────────────────────────────────────────
     from app.paths import bundle_path
+
     builtin_dir = str(bundle_path("resources", "prompts"))
     sandbox_dir = str(ensure_user_data_dir() / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
@@ -113,8 +114,6 @@ def _build_agent_runtime(
         if api_key:
             primary.set_api_key(api_key)
         router = LLMRouter(primary=primary)
-        from store.usage_store import UsageStore
-        router._usage_store = UsageStore(db)
     else:
         # 用一个占位 router——Agent 注册了但调用时会报错
         router = LLMRouter(
@@ -205,11 +204,10 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
     if api_key:
         primary.set_api_key(api_key)
     router = LLMRouter(primary=primary)
-    from store.usage_store import UsageStore
-    router._usage_store = UsageStore(state.db)
 
     # ── 模板加载器 ────────────────────────────────────────────────────
     from app.paths import bundle_path
+
     builtin_dir = str(bundle_path("resources", "prompts"))
     sandbox_dir = str(ensure_user_data_dir() / "prompts")
     templates = TemplateLoader(builtin_dir=builtin_dir, sandbox_dir=sandbox_dir)
@@ -275,6 +273,7 @@ class MercuryApp:
             from PySide6.QtCore import QTranslator
 
             from app.paths import bundle_path
+
             qm_path = bundle_path("resources", "i18n", "mercury_en.qm")
             if qm_path.exists():
                 translator = QTranslator()

@@ -1,9 +1,10 @@
-﻿# app/state.py
+# app/state.py
 """全局应用状态单例。
 
 AppState 是整个应用的唯一可变全局状态容器。
 禁止其他模块声明可变全局变量；所有跨模块共享状态必须挂载到此对象上。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

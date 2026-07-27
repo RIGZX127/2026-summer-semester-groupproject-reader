@@ -4,6 +4,7 @@
 将 DigestExporter 的纯渲染能力与 Store 数据查询连接起来，
 UI 只需注入一个 Controller 即可完成完整的导出流程。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,6 +41,7 @@ class DigestController:
     @property
     def _entry_store(self):
         from store.entry_store import EntryStore
+
         if "_cache_entry_store" not in self.__dict__:
             self.__dict__["_cache_entry_store"] = EntryStore(self._db)
         return self.__dict__["_cache_entry_store"]
@@ -47,6 +49,7 @@ class DigestController:
     @property
     def _feed_store(self):
         from store.feed_store import FeedStore
+
         if "_cache_feed_store" not in self.__dict__:
             self.__dict__["_cache_feed_store"] = FeedStore(self._db)
         return self.__dict__["_cache_feed_store"]
@@ -54,6 +57,7 @@ class DigestController:
     @property
     def _content_store(self):
         from store.content_store import ContentStore
+
         if "_cache_content_store" not in self.__dict__:
             self.__dict__["_cache_content_store"] = ContentStore(self._db)
         return self.__dict__["_cache_content_store"]
@@ -61,6 +65,7 @@ class DigestController:
     @property
     def _note_store(self):
         from store.note_store import NoteStore
+
         if "_cache_note_store" not in self.__dict__:
             self.__dict__["_cache_note_store"] = NoteStore(self._db)
         return self.__dict__["_cache_note_store"]
@@ -68,6 +73,7 @@ class DigestController:
     @property
     def _tag_store(self):
         from store.tag_store import TagStore
+
         if "_cache_tag_store" not in self.__dict__:
             self.__dict__["_cache_tag_store"] = TagStore(self._db)
         return self.__dict__["_cache_tag_store"]
@@ -194,6 +200,25 @@ class DigestController:
             None,
             DigestExporter.preview,
             digest,
+            template,
+            max_chars,
+        )
+
+    async def preview_multi(
+        self,
+        entry_ids: list[int],
+        template: str = "multi.md.j2",
+        max_chars: int | None = None,
+    ) -> str:
+        """Build and render a preview for the selected entries."""
+        digests = await self.build_digests(entry_ids)
+        if not digests:
+            return ""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None,
+            DigestExporter.preview_multi,
+            digests,
             template,
             max_chars,
         )

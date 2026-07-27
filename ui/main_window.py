@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         self._active_tagging_run_id: str | None = None
         self._tagging_entry_id: int | None = None
 
-        self.setWindowTitle(self.tr("Mercury RSS Reader"))
+        self.setWindowTitle(self.tr("ChenXing"))
         self.setMinimumSize(1024, 640)
         self.resize(1280, 800)
         self.sidebar = Sidebar()
@@ -135,7 +135,8 @@ class MainWindow(QMainWindow):
         self.sidebar.sync_all_requested.connect(self._sync_all_slot)
         self.sidebar.feed_rename_requested.connect(self._rename_feed_slot)
         self.sidebar.feed_delete_requested.connect(self._delete_feed_slot)
-        self.sidebar.ai_settings_requested.connect(self.open_settings_dialog)
+        self.sidebar.ai_settings_requested.connect(self.open_ai_settings_dialog)
+        self.sidebar.settings_requested.connect(self.open_settings_dialog)
         self.sidebar.import_opml_requested.connect(self._import_opml_slot)
         self.sidebar.export_opml_requested.connect(self._export_opml_slot)
         self.sidebar.collapse_requested.connect(self._hide_sidebar)
@@ -146,42 +147,27 @@ class MainWindow(QMainWindow):
         self.entry_list.mark_read_requested.connect(self._mark_read_slot)
         self.entry_list.star_requested.connect(self._toggle_star_slot)
         self.entry_list.delete_requested.connect(self._delete_entry_slot)
-        self.entry_list.add_to_collection_requested.connect(
-            self._add_to_collection_slot
-        )
-        self.entry_list.export_markdown_requested.connect(
-            self._export_markdown_slot
-        )
+        self.entry_list.add_to_collection_requested.connect(self._add_to_collection_slot)
+        self.entry_list.export_markdown_requested.connect(self._export_markdown_slot)
         self.entry_list.manage_tags_requested.connect(self._manage_tags_slot)
         self.entry_list.generate_tags_requested.connect(self._generate_tags_slot)
         self.entry_list.batch_mark_read_requested.connect(self._batch_mark_read_slot)
         self.entry_list.batch_star_requested.connect(self._batch_toggle_star_slot)
         self.entry_list.batch_delete_requested.connect(self._batch_delete_slot)
-        self.entry_list.batch_export_digest_requested.connect(
-            self._batch_export_digest_slot
-        )
+        self.entry_list.batch_export_digest_requested.connect(self._batch_export_digest_slot)
         self.reader_view.retry_requested.connect(self._retry_reader)
         self.reader_view.tag_filter_requested.connect(self._filter_by_tag)
+        self.reader_view.settings_requested.connect(self.open_ai_settings_dialog)
         self.sidebar.tag_filter_cleared.connect(self._clear_tag_filter)
         self.reader_view.note_editor.save_requested.connect(self._save_note_slot)
-        self.sidebar.collections.collection_selected.connect(
-            self._select_collection_slot
-        )
-        self.sidebar.collections.create_requested.connect(
-            self._create_collection_slot
-        )
-        self.sidebar.collections.rename_requested.connect(
-            self._rename_collection_slot
-        )
-        self.sidebar.collections.delete_requested.connect(
-            self._delete_collection_slot
-        )
+        self.sidebar.collections.collection_selected.connect(self._select_collection_slot)
+        self.sidebar.collections.create_requested.connect(self._create_collection_slot)
+        self.sidebar.collections.rename_requested.connect(self._rename_collection_slot)
+        self.sidebar.collections.delete_requested.connect(self._delete_collection_slot)
         self.sidebar.collections.setVisible(self._collection_store is not None)
         self.reader_view.note_editor.setEnabled(self._note_store is not None)
         if self._agent_runtime is not None:
-            self._agent_runtime.signals.state_changed.connect(
-                self._on_tagging_state_changed
-            )
+            self._agent_runtime.signals.state_changed.connect(self._on_tagging_state_changed)
         self.reader_view.toolbar.sidebar_restore_requested.connect(self._show_sidebar)
         self.reader_view.toolbar.focus_mode_changed.connect(self._set_focus_mode)
         self._sync_service.signals.sync_started.connect(self._on_sync_started)
@@ -201,7 +187,9 @@ class MainWindow(QMainWindow):
         try:
             self.reader_view.reader_web_view.setHtml("<html><body></body></html>")
         except Exception:
-            _logger.warning("QWebEngineView warmup failed — will retry on first load", exc_info=True)
+            _logger.warning(
+                "QWebEngineView warmup failed — will retry on first load", exc_info=True
+            )
 
     async def _initial_load(self) -> None:
         """Load feeds and collections sequentially to avoid SQLite thread contention."""
@@ -339,8 +327,21 @@ class MainWindow(QMainWindow):
         self.reader_view.show_content(result.html, entry.url, entry.id)
 
     def open_settings_dialog(self) -> None:
-        dialog = SettingsDialog(self._settings, self, usage_store=self._usage_store)
+        dialog = SettingsDialog(self._settings, self, mode="general")
         self._settings_dialog = dialog
+        dialog.finished.connect(lambda _result: self._clear_settings_dialog(dialog))
+        dialog.show()
+
+    def open_ai_settings_dialog(self) -> None:
+        dialog = SettingsDialog(
+            self._settings,
+            self,
+            usage_store=self._usage_store,
+            mode="ai",
+        )
+        self._settings_dialog = dialog
+        if dialog.provider_panel is None or dialog.agent_panel is None:
+            raise RuntimeError("AI settings dialog is missing AI configuration panels")
         dialog.provider_panel.test_requested.connect(self._provider_test_slot)
         dialog.provider_panel.configuration_saved.connect(self._on_llm_config_saved)
         dialog.agent_panel.settings_saved.connect(self._on_agent_settings_saved)
@@ -354,9 +355,7 @@ class MainWindow(QMainWindow):
 
         ok = reconfigure_agent_runtime(self._settings)
         if ok:
-            self.statusBar().showMessage(
-                self.tr("LLM 配置已生效，AI 功能立即可用。"), 6000
-            )
+            self.statusBar().showMessage(self.tr("LLM 配置已生效，AI 功能立即可用。"), 6000)
         else:
             self.statusBar().showMessage(
                 self.tr("LLM 配置已保存。请填写完整的服务地址和模型名称后重新保存。"), 8000
@@ -367,9 +366,7 @@ class MainWindow(QMainWindow):
         from app.app import reconfigure_agent_runtime
 
         reconfigure_agent_runtime(self._settings)
-        self.statusBar().showMessage(
-            self.tr("Agent 设置已保存，摘要和翻译将使用新的偏好。"), 5000
-        )
+        self.statusBar().showMessage(self.tr("Agent 设置已保存，摘要和翻译将使用新的偏好。"), 5000)
 
     async def _load_usage_data(self, panel: object) -> None:
         """Fetch usage stats from UsageStore and populate the panel."""
@@ -385,10 +382,7 @@ class MainWindow(QMainWindow):
             )
 
             grouped = await store.get_by_agent_type()
-            rows = [
-                (g.key, g.calls, g.prompt_tokens, g.completion_tokens)
-                for g in grouped
-            ]
+            rows = [(g.key, g.calls, g.prompt_tokens, g.completion_tokens) for g in grouped]
             panel.set_breakdown(rows)
         except Exception:
             pass
@@ -431,9 +425,7 @@ class MainWindow(QMainWindow):
         try:
             if self._search_query:
                 search_feed_id = None if self._search_scope == "all" else feed_id
-                entries = await self._entry_store.search(
-                    self._search_query, feed_id=search_feed_id
-                )
+                entries = await self._entry_store.search(self._search_query, feed_id=search_feed_id)
             else:
                 if feed_id is None:
                     return
@@ -498,9 +490,7 @@ class MainWindow(QMainWindow):
         try:
             rows = await self._collection_store.list_all()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("收藏夹加载失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("收藏夹加载失败：{0}").format(str(exc)), 6000)
             return
         self.sidebar.collections.set_collections(rows)
 
@@ -519,9 +509,7 @@ class MainWindow(QMainWindow):
                 *(self._entry_store.get(entry_id) for entry_id in entry_ids)
             )
         except Exception as exc:  # noqa: BLE001
-            self.entry_list.set_state(
-                "error", self.tr("收藏夹文章加载失败：{0}").format(str(exc))
-            )
+            self.entry_list.set_state("error", self.tr("收藏夹文章加载失败：{0}").format(str(exc)))
             return
         entries = [
             EntryListItem(
@@ -547,9 +535,7 @@ class MainWindow(QMainWindow):
             await self._collection_store.create(name)
             await self.load_collections()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("新建收藏夹失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("新建收藏夹失败：{0}").format(str(exc)), 6000)
 
     async def rename_collection(self, collection_id: int, name: str) -> None:
         if self._collection_store is None:
@@ -558,9 +544,7 @@ class MainWindow(QMainWindow):
             await self._collection_store.update(collection_id, name=name)
             await self.load_collections()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("重命名收藏夹失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("重命名收藏夹失败：{0}").format(str(exc)), 6000)
 
     async def delete_collection(self, collection_id: int) -> None:
         if self._collection_store is None:
@@ -578,9 +562,7 @@ class MainWindow(QMainWindow):
             await self._collection_store.delete(collection_id)
             await self.load_collections()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("删除收藏夹失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("删除收藏夹失败：{0}").format(str(exc)), 6000)
 
     def _choose_collection(self, rows: list) -> int | None:
         names = [row.name for row in rows]
@@ -611,9 +593,7 @@ class MainWindow(QMainWindow):
                 return
             await self._collection_store.add_entry(collection_id, entry_id)
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("添加到收藏夹失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("添加到收藏夹失败：{0}").format(str(exc)), 6000)
             return
         self.statusBar().showMessage(self.tr("已添加到收藏夹"), 4000)
 
@@ -662,11 +642,15 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(self.tr("没有可用的导出模板"), 5000)
             return
 
-        # Generate preview for single-entry export
         preview = ""
         if entry_id is not None:
             try:
                 preview = await self._digest_controller.preview(entry_id, templates[0])
+            except Exception:
+                pass
+        elif entry_ids:
+            try:
+                preview = await self._digest_controller.preview_multi(entry_ids, templates[0])
             except Exception:
                 pass
 
@@ -682,19 +666,13 @@ class MainWindow(QMainWindow):
         elif entry_ids:
             await self._do_export_multi(entry_ids, dest_dir, template)
 
-    async def _do_export_single(
-        self, entry_id: int, dest_dir: str, template: str
-    ) -> None:
+    async def _do_export_single(self, entry_id: int, dest_dir: str, template: str) -> None:
         if self._digest_controller is None:
             return
         try:
-            result = await self._digest_controller.export_single(
-                entry_id, dest_dir, template
-            )
+            result = await self._digest_controller.export_single(entry_id, dest_dir, template)
         except Exception as exc:
-            self.statusBar().showMessage(
-                self.tr("导出失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("导出失败：{0}").format(str(exc)), 6000)
             return
         if result.ok:
             self.statusBar().showMessage(
@@ -705,19 +683,13 @@ class MainWindow(QMainWindow):
                 self.tr("导出失败：{0}").format(result.error or self.tr("未知错误")), 6000
             )
 
-    async def _do_export_multi(
-        self, entry_ids: list[int], dest_dir: str, template: str
-    ) -> None:
+    async def _do_export_multi(self, entry_ids: list[int], dest_dir: str, template: str) -> None:
         if self._digest_controller is None:
             return
         try:
-            result = await self._digest_controller.export_multi(
-                entry_ids, dest_dir, template
-            )
+            result = await self._digest_controller.export_multi(entry_ids, dest_dir, template)
         except Exception as exc:
-            self.statusBar().showMessage(
-                self.tr("Digest 导出失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("Digest 导出失败：{0}").format(str(exc)), 6000)
             return
         if result.ok:
             self.entry_list.set_batch_mode(False)
@@ -726,9 +698,7 @@ class MainWindow(QMainWindow):
             )
         else:
             self.statusBar().showMessage(
-                self.tr("Digest 导出失败：{0}").format(
-                    result.error or self.tr("未知错误")
-                ),
+                self.tr("Digest 导出失败：{0}").format(result.error or self.tr("未知错误")),
                 6000,
             )
 
@@ -739,9 +709,7 @@ class MainWindow(QMainWindow):
         try:
             result = await self._digest_controller.export_single(entry_id, dest_dir)
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("导出失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("导出失败：{0}").format(str(exc)), 6000)
             return
         if result.ok:
             self.statusBar().showMessage(
@@ -753,17 +721,13 @@ class MainWindow(QMainWindow):
                 6000,
             )
 
-    async def export_entries_digest(
-        self, entry_ids: list[int], dest_dir: str
-    ) -> None:
+    async def export_entries_digest(self, entry_ids: list[int], dest_dir: str) -> None:
         if not entry_ids or self._digest_controller is None:
             return
         try:
             result = await self._digest_controller.export_multi(entry_ids, dest_dir)
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("Digest 导出失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("Digest 导出失败：{0}").format(str(exc)), 6000)
             return
         if result.ok:
             self.entry_list.set_batch_mode(False)
@@ -772,15 +736,11 @@ class MainWindow(QMainWindow):
             )
         else:
             self.statusBar().showMessage(
-                self.tr("Digest 导出失败：{0}").format(
-                    result.error or self.tr("未知错误")
-                ),
+                self.tr("Digest 导出失败：{0}").format(result.error or self.tr("未知错误")),
                 6000,
             )
 
-    async def load_entry_tags(
-        self, entry_id: int, request_id: str | None = None
-    ) -> list[str]:
+    async def load_entry_tags(self, entry_id: int, request_id: str | None = None) -> list[str]:
         if self._tag_store is None:
             self.reader_view.set_tags([])
             return []
@@ -788,9 +748,7 @@ class MainWindow(QMainWindow):
             rows = await self._tag_store.get_entry_tags(entry_id)
         except Exception as exc:  # noqa: BLE001
             if request_id is None or request_id == self._entry_request_id:
-                self.statusBar().showMessage(
-                    self.tr("标签加载失败：{0}").format(str(exc)), 5000
-                )
+                self.statusBar().showMessage(self.tr("标签加载失败：{0}").format(str(exc)), 5000)
             return []
         if request_id is not None and request_id != self._entry_request_id:
             return []
@@ -809,9 +767,7 @@ class MainWindow(QMainWindow):
             return None
         return dialog.tag_names()
 
-    async def manage_entry_tags(
-        self, entry_id: int, suggested: list[str] | None = None
-    ) -> None:
+    async def manage_entry_tags(self, entry_id: int, suggested: list[str] | None = None) -> None:
         if self._tag_store is None:
             return
         current = await self.load_entry_tags(entry_id)
@@ -822,9 +778,7 @@ class MainWindow(QMainWindow):
             tags = [await self._tag_store.create(name) for name in names]
             await self._tag_store.set_entry_tags(entry_id, [tag.id for tag in tags])
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("标签保存失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("标签保存失败：{0}").format(str(exc)), 6000)
             return
         if self._selected_entry_id in {None, entry_id}:
             self.reader_view.set_tags(names)
@@ -832,17 +786,13 @@ class MainWindow(QMainWindow):
 
     def generate_entry_tags(self, entry_id: int) -> None:
         if self._agent_runtime is None:
-            self.statusBar().showMessage(self.tr("请先配置 AI 服务"), 5000)
+            self.reader_view.notify_ai_unconfigured("tagging")
             return
         try:
             self._tagging_entry_id = entry_id
-            self._active_tagging_run_id = self._agent_runtime.submit(
-                entry_id, "tagging"
-            )
+            self._active_tagging_run_id = self._agent_runtime.submit(entry_id, "tagging")
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("AI 标签任务启动失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("AI 标签任务启动失败：{0}").format(str(exc)), 6000)
             return
         self.statusBar().showMessage(self.tr("正在生成标签…"))
 
@@ -868,9 +818,7 @@ class MainWindow(QMainWindow):
         try:
             result = json.loads(evt.result_json)
             suggestions = [
-                str(name).strip()
-                for name in result.get("tags", [])
-                if str(name).strip()
+                str(name).strip() for name in result.get("tags", []) if str(name).strip()
             ]
         except (json.JSONDecodeError, TypeError, AttributeError):
             suggestions = []
@@ -969,9 +917,7 @@ class MainWindow(QMainWindow):
         self.entry_list.set_batch_mode(False)
         self.statusBar().showMessage(self.tr("已删除 {0} 篇文章").format(len(entry_ids)), 4000)
 
-    async def _import_opml_urls(
-        self, urls: list[str], titles: list[str]
-    ) -> None:
+    async def _import_opml_urls(self, urls: list[str], titles: list[str]) -> None:
         """Import feeds selected in the OPML preview dialog."""
         if self._opml_controller is None:
             QMessageBox.warning(self, self.tr("导入 OPML"), self.tr("OPML 控制器未初始化。"))
@@ -1003,17 +949,13 @@ class MainWindow(QMainWindow):
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
             msg.setWindowTitle(self.tr("OPML 导入 — 失败详情"))
-            msg.setText(
-                self.tr("以下 {0} 个订阅源未能导入：").format(len(result.failed))
-            )
+            msg.setText(self.tr("以下 {0} 个订阅源未能导入：").format(len(result.failed)))
             msg.setDetailedText("\n\n".join(detail_lines))
             msg.exec()
 
         # Auto-sync newly imported feeds so their articles appear immediately
         if result.success:
-            self.statusBar().showMessage(
-                self.tr("OPML 导入完成，正在同步新订阅源…"), 4000
-            )
+            self.statusBar().showMessage(self.tr("OPML 导入完成，正在同步新订阅源…"), 4000)
             for feed_url in result.success:
                 try:
                     feed = await self._feed_store.get_by_url(feed_url.url)
@@ -1052,9 +994,7 @@ class MainWindow(QMainWindow):
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
             msg.setWindowTitle(self.tr("OPML 导入 — 失败详情"))
-            msg.setText(
-                self.tr("以下 {0} 个订阅源未能导入：").format(len(result.failed))
-            )
+            msg.setText(self.tr("以下 {0} 个订阅源未能导入：").format(len(result.failed)))
             msg.setDetailedText("\n\n".join(detail_lines))
             msg.exec()
 
@@ -1081,9 +1021,7 @@ class MainWindow(QMainWindow):
         try:
             await self._sync_service.sync_all()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("同步全部订阅失败：{0}").format(str(exc)), 7000
-            )
+            self.statusBar().showMessage(self.tr("同步全部订阅失败：{0}").format(str(exc)), 7000)
 
     async def rename_feed(self, feed_id: int, title: str) -> None:
         title = title.strip()
@@ -1093,9 +1031,7 @@ class MainWindow(QMainWindow):
             await self._feed_store.update(feed_id, title=title, favicon_url=None)
             await self.load_feeds()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("重命名订阅失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("重命名订阅失败：{0}").format(str(exc)), 6000)
             return
         self.statusBar().showMessage(self.tr("订阅已重命名"), 4000)
 
@@ -1129,9 +1065,7 @@ class MainWindow(QMainWindow):
                 self.reader_view.show_empty()
             await self.load_feeds()
         except Exception as exc:  # noqa: BLE001
-            self.statusBar().showMessage(
-                self.tr("删除订阅失败：{0}").format(str(exc)), 6000
-            )
+            self.statusBar().showMessage(self.tr("删除订阅失败：{0}").format(str(exc)), 6000)
             return
         self.statusBar().showMessage(self.tr("订阅已删除"), 4000)
 
@@ -1205,9 +1139,7 @@ class MainWindow(QMainWindow):
             return
         self.entry_list.set_state("loading")
         try:
-            row = await self._tag_store.get_by_name(
-                self._active_tag_filter.casefold()
-            )
+            row = await self._tag_store.get_by_name(self._active_tag_filter.casefold())
         except Exception:
             self.entry_list.set_state("error", self.tr("标签查询失败"))
             return
@@ -1276,7 +1208,6 @@ class MainWindow(QMainWindow):
     @asyncSlot(int, str)
     async def _save_note_slot(self, entry_id: int, body: str) -> None:
         await self.save_note(entry_id, body)
-
 
     @asyncSlot(list, bool)
     async def _batch_mark_read_slot(self, entry_ids: list[int], read: bool) -> None:
@@ -1384,6 +1315,7 @@ class MainWindow(QMainWindow):
         self.reader_view.toolbar.show_sidebar_restore(False)
 
     def _set_focus_mode(self, enabled: bool) -> None:
+        self.reader_view.set_focus_mode(enabled)
         if enabled:
             self._sidebar_visible_before_focus = not self.sidebar.isHidden()
             self.sidebar.hide()

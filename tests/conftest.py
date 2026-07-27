@@ -1,5 +1,6 @@
 # tests/conftest.py
 """pytest 全局 fixture。"""
+
 from __future__ import annotations
 
 # ── sys.path 修复 ──────────────────────────────────────────────────────────────
@@ -10,6 +11,7 @@ import sys as _sys
 
 def _fix_stdlib_path() -> None:
     import sysconfig as _sc
+
     stdlib_dir = _sc.get_paths()["stdlib"]
     if stdlib_dir not in _sys.path:
         _sys.path.insert(0, stdlib_dir)
@@ -17,6 +19,7 @@ def _fix_stdlib_path() -> None:
     platstdlib_dir = _sc.get_paths().get("platstdlib", "")
     if platstdlib_dir and platstdlib_dir not in _sys.path:
         _sys.path.insert(0, platstdlib_dir)
+
 
 _fix_stdlib_path()
 # ──────────────────────────────────────────────────────────────────────────────

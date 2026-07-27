@@ -7,6 +7,7 @@
 缓存键：(entry_id, provider_name, model, prompt_version)
 四字段全匹配走缓存，任一变化触发重新生成。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,9 +26,7 @@ if TYPE_CHECKING:
 _CACHE_KEY_VERSION = 1
 
 
-def _build_cache_key(
-    entry_id: int, provider: str, model: str, prompt_version: int
-) -> str:
+def _build_cache_key(entry_id: int, provider: str, model: str, prompt_version: int) -> str:
     """构建缓存键字符串，用于匹配已缓存结果。"""
     return f"{entry_id}:{provider}:{model}:{prompt_version}:v{_CACHE_KEY_VERSION}"
 
@@ -64,7 +63,7 @@ class SummaryAgent:
 
         # 可配置参数（由 UI 在注册前或运行时修改）
         self.detail_level: str = "standard"  # "brief" | "standard" | "detailed"
-        self.language: str = "Chinese"        # 目标摘要语言
+        self.language: str = "Chinese"  # 目标摘要语言
 
     # ── 注册 ─────────────────────────────────────────────────────────────
 
@@ -95,9 +94,7 @@ class SummaryAgent:
 
     # ── 核心生成逻辑 ─────────────────────────────────────────────────────
 
-    async def _generate(
-        self, entry_id: int, run_id: str, db_run: AgentRun
-    ) -> dict:
+    async def _generate(self, entry_id: int, run_id: str, db_run: AgentRun) -> dict:
         """执行摘要生成流程。
 
         1. 检查 AgentStore 缓存（同 entry + 同 provider 的已完成结果）
@@ -123,9 +120,7 @@ class SummaryAgent:
                     # 缓存命中：一次性广播完整文本
                     summary_text = cached_result.get("summary", "")
                     if self._runtime and summary_text:
-                        self._runtime.broadcast_chunk(
-                            run_id, entry_id, "summary", summary_text
-                        )
+                        self._runtime.broadcast_chunk(run_id, entry_id, "summary", summary_text)
                     return cached_result
             except (json.JSONDecodeError, KeyError):
                 pass  # 缓存损坏，重新生成
@@ -160,7 +155,6 @@ class SummaryAgent:
                 ],
                 temperature=tpl.config.get("temperature", 0.3),
                 max_tokens=tpl.config.get("max_tokens", 1024),
-                agent_type="summary",
             ):
                 full_text_parts.append(chunk)
                 await buf.feed(chunk)

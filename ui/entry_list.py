@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSignalBlocker, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPalette, QResizeEvent
+from PySide6.QtGui import QColor, QPalette, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -58,9 +58,6 @@ class WrappingItemDelegate(QStyledItemDelegate):
                 QPalette.ColorRole.Text,
                 _blend_color(text_color, background_color, 0.52),
             )
-            option.font.setWeight(QFont.Weight.Normal)
-        else:
-            option.font.setWeight(QFont.Weight.DemiBold)
 
     def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:  # noqa: N802
         wrapped = QStyleOptionViewItem(option)
@@ -354,9 +351,7 @@ class EntryListWidget(QWidget):
             self.tr("搜索全部订阅") if is_global else self.tr("搜索当前订阅源")
         )
         self.search_edit.setAccessibleName(
-            self.tr("搜索全部订阅的文章")
-            if is_global
-            else self.tr("搜索当前订阅源的文章")
+            self.tr("搜索全部订阅的文章") if is_global else self.tr("搜索当前订阅源的文章")
         )
 
     def _show_context_menu(self, position) -> None:
@@ -382,7 +377,9 @@ class EntryListWidget(QWidget):
         menu.addSeparator()
         delete_action = menu.addAction(self.tr("删除"))
         read_action.triggered.connect(
-            lambda _checked=False, _item=item, _is_read=is_read: self._emit_read_for_item(_item, not _is_read)
+            lambda _checked=False, _item=item, _is_read=is_read: self._emit_read_for_item(
+                _item, not _is_read
+            )
         )
         star_action.triggered.connect(
             lambda _checked=False, _item=item: self._emit_star_for_item(_item)
@@ -427,9 +424,7 @@ class EntryListWidget(QWidget):
         star_action.triggered.connect(
             lambda _checked=False: self.batch_star_requested.emit(self.selected_entry_ids())
         )
-        export_action.triggered.connect(
-            lambda _checked=False: self._emit_batch_export()
-        )
+        export_action.triggered.connect(lambda _checked=False: self._emit_batch_export())
         delete_action.triggered.connect(
             lambda _checked=False: self.batch_delete_requested.emit(self.selected_entry_ids())
         )

@@ -1,4 +1,5 @@
 """Tests for TagAgent — tag suggestion, parsing, normalization, dedup."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -26,7 +27,7 @@ def mock_router() -> MagicMock:
     router.active_provider_name = "test-provider"
     router.active_model_name = "test-model"
 
-    async def mock_stream(messages, *, temperature=0.5, max_tokens=256, agent_type="unknown"):
+    async def mock_stream(messages, temperature=0.5, max_tokens=256):
         yield '["machine learning", "AI", "testing"]'
 
     router.chat_stream = mock_stream
@@ -140,11 +141,13 @@ async def test_suggest_returns_tag_dict(agent) -> None:
 
 
 @pytest.mark.asyncio
-async def test_suggest_uses_existing_tags_fn(agent, mock_pipeline, mock_router, mock_templates) -> None:
+async def test_suggest_uses_existing_tags_fn(
+    agent, mock_pipeline, mock_router, mock_templates
+) -> None:
     # Replace router to return different tags on second call
     call_count = 0
 
-    async def mock_stream(messages, *, temperature=0.5, max_tokens=256, agent_type="unknown"):
+    async def mock_stream(messages, temperature=0.5, max_tokens=256):
         nonlocal call_count
         call_count += 1
         yield '["new tag"]'
@@ -184,9 +187,7 @@ async def test_register_adds_handler() -> None:
     AgentRuntime._instance = None
     runtime2 = AgentRuntime()
     try:
-        agent = TagAgent(
-            MagicMock(), MagicMock(), MagicMock()
-        )
+        agent = TagAgent(MagicMock(), MagicMock(), MagicMock())
         agent.register(runtime2)
         # Handler should be registered under "tagging"
         assert "tagging" in runtime2._handlers

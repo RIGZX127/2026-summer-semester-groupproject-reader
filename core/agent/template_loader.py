@@ -14,6 +14,7 @@
       temperature: 0.7
       max_tokens: 2048
 """
+
 from __future__ import annotations
 
 import shutil
@@ -57,9 +58,7 @@ class TemplateLoader:
             return self._parse(agent_type, sandbox_file, "sandbox")
         if builtin_file.exists():
             return self._parse(agent_type, builtin_file, "builtin")
-        raise FileNotFoundError(
-            f"No template found for agent_type={agent_type}"
-        )
+        raise FileNotFoundError(f"No template found for agent_type={agent_type}")
 
     def init_sandbox(self, agent_type: str) -> Path:
         """首次自定义：从内置复制到沙盒，不覆盖已有文件。"""
@@ -77,9 +76,7 @@ class TemplateLoader:
         if sandbox_file.exists():
             sandbox_file.unlink()
 
-    def _parse(
-        self, agent_type: str, filepath: Path, source: str
-    ) -> PromptTemplate:
+    def _parse(self, agent_type: str, filepath: Path, source: str) -> PromptTemplate:
         with open(filepath, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return PromptTemplate(
@@ -91,9 +88,7 @@ class TemplateLoader:
             source=source,
         )
 
-    def render(
-        self, tpl: PromptTemplate, **variables
-    ) -> tuple[str, str]:
+    def render(self, tpl: PromptTemplate, **variables) -> tuple[str, str]:
         """渲染提示词，返回 (system_prompt, user_prompt)。"""
         jinja = Template(tpl.user_prompt_template)
         return tpl.system_prompt, jinja.render(**variables)

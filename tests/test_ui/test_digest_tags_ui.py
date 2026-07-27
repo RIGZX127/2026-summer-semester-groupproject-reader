@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QSettings
 
+from core.digest.exporter import DigestExporter, EntryDigest
 from core.feed.sync import SyncSignals
 from store.entry_store import EntryListItem
 from ui.entry_list import EntryListWidget
@@ -59,6 +60,14 @@ class FakeDigestController:
     def __init__(self) -> None:
         self.single: list[tuple[int, str]] = []
         self.multi: list[tuple[list[int], str]] = []
+        self.multi_previews: list[tuple[list[int], str]] = []
+
+    def list_templates(self) -> list[str]:
+        return ["multi.md.j2"]
+
+    async def preview_multi(self, entry_ids: list[int], template: str) -> str:
+        self.multi_previews.append((entry_ids, template))
+        return "# Digest\n\n- Article 5\n- Article 6"
 
     async def export_single(self, entry_id: int, path: str):
         self.single.append((entry_id, path))
@@ -108,6 +117,86 @@ def test_export_calls_injected_digest_controller(tmp_path, qtbot) -> None:
     asyncio.run(window.export_entries_digest([5, 6], "/tmp/export"))
     assert window._digest_controller.single == [(5, "/tmp/export")]
     assert window._digest_controller.multi == [([5, 6], "/tmp/export")]
+
+
+def test_batch_export_dialog_receives_preview_for_selected_entries(
+    tmp_path, qtbot, monkeypatch
+) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    from ui.dialogs import export_dialog
+
+    captured: dict[str, str] = {}
+
+    class FakeExportDialog:
+        def __init__(self, _templates, preview_text, parent=None):
+            captured["preview"] = preview_text
+
+        def exec(self):
+            return QDialog.DialogCode.Rejected
+
+    window = _window(tmp_path, qtbot)
+    monkeypatch.setattr(export_dialog, "ExportDialog", FakeExportDialog)
+
+    asyncio.run(window._show_export_dialog(entry_ids=[5, 6]))
+
+    assert captured["preview"] == "# Digest\n\n- Article 5\n- Article 6"
+    assert window._digest_controller.multi_previews == [([5, 6], "multi.md.j2")]
+
+
+def test_multi_preview_renders_every_selected_article() -> None:
+    preview = DigestExporter.preview_multi(
+        [
+            EntryDigest(5, "First article", published_at="2026-07-25"),
+            EntryDigest(6, "Second article", published_at="2026-07-26"),
+        ]
+    )
+
+    assert "共 2 篇文章" in preview
+    assert "First article" in preview
+    assert "Second article" in preview
+
+
+def test_multi_preview_handles_article_with_missing_metadata() -> None:
+    preview = DigestExporter.preview_multi(
+        [
+            EntryDigest(
+                7,
+                None,  # type: ignore[arg-type]
+                url="",
+                author="",
+                published_at="",
+                feed_title="",
+                summary="",
+            )
+        ]
+    )
+
+    assert "## 1. 无标题" in preview
+    assert "None" not in preview
+    assert "[]()" not in preview
+    assert "- **作者**：" not in preview
+    assert "- **来源**：" not in preview
+
+
+def test_multi_preview_keeps_markdown_layout_without_truncating() -> None:
+    entries = [
+        EntryDigest(
+            index,
+            f"Article {index}",
+            summary='<p>Summary with <a href="https://example.com">a link</a>.</p>',
+        )
+        for index in range(1, 31)
+    ]
+
+    preview = DigestExporter.preview_multi(entries)
+
+    assert "## 1. Article 1" in preview
+    assert "## 30. Article 30" in preview
+    assert "\n\n## 2." in preview
+    assert "…（截断）" not in preview
+    assert "<p>" not in preview
+    assert "[a link](https://example.com)" in preview
 
 
 def test_reader_displays_tags(qtbot) -> None:

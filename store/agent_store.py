@@ -3,6 +3,7 @@
 
 agent_runs 表由 migrations v1 定义。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -60,9 +61,7 @@ class AgentStore:
         ).fetchone()
         return _row_to_agent_run(row)
 
-    def _sync_complete(
-        self, run_id: int, result: dict | None, error: str | None
-    ) -> None:
+    def _sync_complete(self, run_id: int, result: dict | None, error: str | None) -> None:
         status = "error" if error else "done"
         result_json = json.dumps(result, ensure_ascii=False) if result else None
         with self._conn:
@@ -84,14 +83,10 @@ class AgentStore:
             )
 
     def _sync_get(self, run_id: int) -> AgentRun | None:
-        row = self._conn.execute(
-            "SELECT * FROM agent_runs WHERE id = ?", (run_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
         return _row_to_agent_run(row) if row else None
 
-    def _sync_get_latest(
-        self, entry_id: int, agent_type: str
-    ) -> AgentRun | None:
+    def _sync_get_latest(self, entry_id: int, agent_type: str) -> AgentRun | None:
         row = self._conn.execute(
             """SELECT * FROM agent_runs
                WHERE entry_id=? AND agent_type=?
@@ -102,9 +97,7 @@ class AgentStore:
 
     async def create(self, entry_id: int, agent_type: str) -> AgentRun:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, self._sync_create, entry_id, agent_type
-        )
+        return await loop.run_in_executor(None, self._sync_create, entry_id, agent_type)
 
     async def complete(
         self,
@@ -113,9 +106,7 @@ class AgentStore:
         error: str | None = None,
     ) -> None:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None, self._sync_complete, run_id, result, error
-        )
+        await loop.run_in_executor(None, self._sync_complete, run_id, result, error)
 
     async def cancel(self, run_id: int) -> None:
         loop = asyncio.get_running_loop()
@@ -125,10 +116,6 @@ class AgentStore:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._sync_get, run_id)
 
-    async def get_latest(
-        self, entry_id: int, agent_type: str
-    ) -> AgentRun | None:
+    async def get_latest(self, entry_id: int, agent_type: str) -> AgentRun | None:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, self._sync_get_latest, entry_id, agent_type
-        )
+        return await loop.run_in_executor(None, self._sync_get_latest, entry_id, agent_type)

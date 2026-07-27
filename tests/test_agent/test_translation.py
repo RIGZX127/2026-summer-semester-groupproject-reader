@@ -1,5 +1,6 @@
 # tests/test_agent/test_translation.py
 """TranslationAgent 单元测试（mock AsyncOpenAI，无真实 LLM 调用）。"""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -22,6 +23,7 @@ TEST_HTML = """<h1>Test Title</h1>
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 async def entry_id(db) -> int:
     """在内存数据库中创建 feed + entry。"""
@@ -30,8 +32,13 @@ async def entry_id(db) -> int:
 
     feed = await FeedStore(db).add("https://example.com/feed")
     entry = await EntryStore(db).add(
-        feed.id, "guid-trans-test", "https://example.com/article",
-        "Test Article", "Summary text", "Author", None,
+        feed.id,
+        "guid-trans-test",
+        "https://example.com/article",
+        "Test Article",
+        "Summary text",
+        "Author",
+        None,
     )
     return entry.id
 
@@ -121,10 +128,9 @@ def agent(mock_pipeline, mock_router, mock_templates) -> TranslationAgent:
 
 # ── Tests ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_translation_agent_registers_handler(
-    agent, mock_runtime
-) -> None:
+async def test_translation_agent_registers_handler(agent, mock_runtime) -> None:
     """验证 register() 向 AgentRuntime 注册 'translation' handler。"""
     agent.register(mock_runtime)
     mock_runtime.register.assert_called_once()
@@ -180,9 +186,7 @@ async def test_translation_empty_html_raises_error(
 
 
 @pytest.mark.asyncio
-async def test_translation_assembles_bilingual_html(
-    agent, mock_runtime, entry_id
-) -> None:
+async def test_translation_assembles_bilingual_html(agent, mock_runtime, entry_id) -> None:
     """验证翻译结果组装为双语 HTML 格式。"""
     agent.register(mock_runtime)
     agent.target_language = "Chinese"
@@ -203,9 +207,7 @@ async def test_translation_assembles_bilingual_html(
 
 
 @pytest.mark.asyncio
-async def test_translation_broadcasts_progress(
-    agent, mock_runtime, entry_id
-) -> None:
+async def test_translation_broadcasts_progress(agent, mock_runtime, entry_id) -> None:
     """验证翻译过程中广播进度信号。"""
     agent.register(mock_runtime)
     handler = mock_runtime.register.call_args[0][1]
@@ -218,9 +220,7 @@ async def test_translation_broadcasts_progress(
 
 
 @pytest.mark.asyncio
-async def test_translation_concurrency_degree(
-    agent, mock_runtime, entry_id
-) -> None:
+async def test_translation_concurrency_degree(agent, mock_runtime, entry_id) -> None:
     """验证并发度配置生效。"""
     agent.degree = 2
     assert agent.degree == 2

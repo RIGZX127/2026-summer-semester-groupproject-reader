@@ -1,4 +1,4 @@
-﻿# core/reader/readability.py
+# core/reader/readability.py
 """正文提取：对 readability-lxml 的薄封装 + HTML 后处理清洗。
 
 同步函数，由 pipeline.py 用 run_in_executor 调用。
@@ -11,6 +11,7 @@
 
 注意：所有规则均为通用规则，不得硬编码特定网站逻辑。
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,7 +20,7 @@ from dataclasses import dataclass
 
 _logger = logging.getLogger(__name__)
 
-_MIN_TEXT_LENGTH = 80   # 纯文本字符数低于此值视为提取失败
+_MIN_TEXT_LENGTH = 80  # 纯文本字符数低于此值视为提取失败
 
 # ── 清洗规则常量 ────────────────────────────────────────────────────────────
 
@@ -29,9 +30,15 @@ _MIN_TEXT_LENGTH = 80   # 纯文本字符数低于此值视为提取失败
 _NON_CONTENT_TAGS = frozenset({"footer", "nav", "aside"})
 
 # L1: ARIA role 非正文值
-_NON_CONTENT_ROLES = frozenset({
-    "navigation", "contentinfo", "complementary", "banner", "search",
-})
+_NON_CONTENT_ROLES = frozenset(
+    {
+        "navigation",
+        "contentinfo",
+        "complementary",
+        "banner",
+        "search",
+    }
+)
 
 # L2: class / id 非正文关键词（按单词边界匹配）
 _NON_CONTENT_CLASS_RE = re.compile(
@@ -54,6 +61,7 @@ _LINK_DENSITY_TAGS = frozenset({"ul", "ol", "div", "section", "p", "li"})
 
 
 # ── 清洗函数 ────────────────────────────────────────────────────────────────
+
 
 def _clean_html(html: str) -> str:
     """对 readability 提取后的 HTML 做三层后处理清洗。"""
@@ -99,10 +107,7 @@ def _clean_html(html: str) -> str:
             continue
 
         text_len = len(text)
-        link_text_len = sum(
-            len(a.get_text(separator=" ", strip=True))
-            for a in el.find_all("a")
-        )
+        link_text_len = sum(len(a.get_text(separator=" ", strip=True)) for a in el.find_all("a"))
 
         if text_len > 0 and (link_text_len / text_len) > _LINK_DENSITY_THRESHOLD:
             el.decompose()
@@ -111,6 +116,7 @@ def _clean_html(html: str) -> str:
 
 
 # ── 公开接口 ────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class ExtractedContent:
@@ -154,4 +160,3 @@ def extract(html: str, url: str = "") -> ExtractedContent:
     except Exception:  # noqa: BLE001
         _logger.warning("readability 正文提取失败，回退到摘要", exc_info=True)
         return ExtractedContent("", "", "")
-

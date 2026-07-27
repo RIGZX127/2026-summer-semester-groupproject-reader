@@ -14,6 +14,7 @@ G3.1+G3.2 gate 接口：状态机 + 队列 + 信号发射。
   假定 asyncio 事件循环与 Qt 主线程在同一线程运行（qasync 模式），
   共享状态（_queue, _processing 等）不需要额外锁保护。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,12 +33,14 @@ AgentStatus = Literal["idle", "queued", "running", "done", "error", "cancelled"]
 
 # ── G3.2 frozen 接口 ───────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class AgentUIEvent:
     """Agent UI 事件，通过信号传递给前端。
 
     所有字段在构造后不可变（frozen dataclass）。
     """
+
     run_id: str
     entry_id: int
     agent_type: str
@@ -50,13 +53,16 @@ class AgentUIEvent:
 
 # ── Qt 信号层 ──────────────────────────────────────────────────────────────
 
+
 class AgentSignals(QObject):
     """Agent 运行时 Qt 信号集合。"""
-    state_changed = Signal(object)   # AgentUIEvent
+
+    state_changed = Signal(object)  # AgentUIEvent
     chunk_received = Signal(object)  # AgentUIEvent (status=running, chunk=text)
 
 
 # ── 运行时核心 ─────────────────────────────────────────────────────────────
+
 
 class AgentRuntime:
     """共享 AI Agent 运行时（单例）。
@@ -173,9 +179,7 @@ class AgentRuntime:
             if self._current_task is not None and not self._current_task.done():
                 self._current_task.cancel()
 
-    def broadcast_chunk(
-        self, run_id: str, entry_id: int, agent_type: str, chunk_text: str
-    ) -> None:
+    def broadcast_chunk(self, run_id: str, entry_id: int, agent_type: str, chunk_text: str) -> None:
         """广播流式文本 chunk 到 UI。
 
         由 Agent handler 通过 StreamBuffer 的回调调用::

@@ -10,6 +10,8 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QSplitter,
@@ -40,6 +42,7 @@ class ExternalLinkPage(QWebEnginePage):
 class ReaderView(QWidget):
     retry_requested = Signal()
     tag_filter_requested = Signal(str)
+    settings_requested = Signal()
     VALID_MODES = frozenset({"reader", "web", "split"})
 
     def __init__(
@@ -61,6 +64,7 @@ class ReaderView(QWidget):
         self.toolbar = ReaderToolbar(self.theme_manager.theme)
         self.toolbar.set_theme_preference(self.app_theme_controller.preference)
         from ui.reader.tag_bar import TagBar
+
         self.tag_bar = TagBar(self)
         self.tag_bar.setAccessibleName(self.tr("文章标签"))
         self.tag_bar.tag_clicked.connect(self.tag_filter_requested)
@@ -82,6 +86,10 @@ class ReaderView(QWidget):
         self._current_entry_id: int | None = None
         self._contrast_original: str = ""
         self._contrast_translated: str = ""
+        self._bottom_collapsed_height = 44
+        self._bottom_expanded_height = 200
+        self._bottom_panel_collapsed = True
+        self._pre_focus_bottom_state: tuple[bool, int, int] | None = None
 
         self._auto_summary_timer = QTimer(self)
         self._auto_summary_timer.setSingleShot(True)
@@ -135,6 +143,30 @@ class ReaderView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.toolbar)
+        self.ai_banner = QFrame(self)
+        self.ai_banner.setObjectName("AIUnconfiguredBanner")
+        self.ai_banner.setAccessibleName(self.tr("AI 服务配置提示"))
+        banner_layout = QHBoxLayout(self.ai_banner)
+        banner_layout.setContentsMargins(12, 6, 8, 6)
+        banner_layout.setSpacing(8)
+        self.ai_banner_message = QLabel(self.tr("尚未配置 AI 服务"))
+        self.ai_banner_message.setObjectName("AIUnconfiguredMessage")
+        self.ai_banner_message.setWordWrap(True)
+        banner_layout.addWidget(self.ai_banner_message, 1)
+        self.ai_settings_button = QPushButton(self.tr("打开设置"))
+        self.ai_settings_button.setObjectName("AISettingsButton")
+        self.ai_settings_button.setAccessibleName(self.tr("打开 AI 服务设置"))
+        self.ai_settings_button.setToolTip(self.tr("打开设置并配置 AI 服务"))
+        banner_layout.addWidget(self.ai_settings_button)
+        self.ai_banner_close_button = QPushButton("×")
+        self.ai_banner_close_button.setObjectName("AIBannerCloseButton")
+        self.ai_banner_close_button.setMinimumSize(36, 36)
+        self.ai_banner_close_button.setMaximumSize(36, 36)
+        self.ai_banner_close_button.setAccessibleName(self.tr("关闭 AI 服务提示"))
+        self.ai_banner_close_button.setToolTip(self.tr("关闭提示"))
+        banner_layout.addWidget(self.ai_banner_close_button)
+        self.ai_banner.hide()
+        layout.addWidget(self.ai_banner)
         layout.addWidget(self.tag_bar)
         self.reader_splitter = QSplitter(Qt.Orientation.Vertical)
         self.reader_splitter.setObjectName("ReaderSummarySplitter")
@@ -144,6 +176,7 @@ class ReaderView(QWidget):
         self.reader_splitter.setStretchFactor(0, 1)
         self.reader_splitter.setStretchFactor(1, 0)
         self.reader_splitter.setOpaqueResize(True)
+        self.bottom_tabs.setMaximumHeight(self._bottom_collapsed_height)
         layout.addWidget(self.reader_splitter, 1)
 
         self.toolbar.mode_changed.connect(self.set_mode)
@@ -155,7 +188,11 @@ class ReaderView(QWidget):
         self.toolbar.translation_cancel_requested.connect(self._cancel_translation)
         self.toolbar.translation_mode_changed.connect(self.set_translation_mode)
         self.summary_panel.expanded_changed.connect(self._on_summary_expanded)
+        self.summary_panel.ai_unconfigured.connect(self.notify_ai_unconfigured)
+        self.bottom_tabs.tabBarClicked.connect(self.open_bottom_tab)
         self.reader_splitter.splitterMoved.connect(self._on_reader_splitter_moved)
+        self.ai_settings_button.clicked.connect(self.settings_requested)
+        self.ai_banner_close_button.clicked.connect(self.ai_banner.hide)
         if self._agent_runtime is not None:
             self._agent_runtime.signals.state_changed.connect(self._on_agent_state_changed)
             self._agent_runtime.signals.chunk_received.connect(self._on_agent_chunk)
@@ -325,6 +362,8 @@ class ReaderView(QWidget):
     def _request_translation(self) -> None:
         if self._agent_runtime is None or self._current_entry_id is None:
             self.toolbar.set_translation_state("error")
+            if self._agent_runtime is None:
+                self.notify_ai_unconfigured("translation")
             return
         try:
             self._active_translation_run_id = self._agent_runtime.submit(
@@ -410,9 +449,7 @@ class ReaderView(QWidget):
             soup = BeautifulSoup(self._bilingual_fragment, "html.parser")
             existing_blocks = soup.select(".mercury-trans-block")
             if index < len(existing_blocks):
-                existing_blocks[index].replace_with(
-                    BeautifulSoup(seg_html, "html.parser")
-                )
+                existing_blocks[index].replace_with(BeautifulSoup(seg_html, "html.parser"))
             else:
                 soup.append(BeautifulSoup(seg_html, "html.parser"))
             self._bilingual_fragment = str(soup)
@@ -460,14 +497,64 @@ class ReaderView(QWidget):
         return self._original_fragment
 
     def _on_summary_expanded(self, expanded: bool) -> None:
+        self.set_bottom_panel_expanded(expanded)
+
+    @property
+    def bottom_panel_collapsed(self) -> bool:
+        return self._bottom_panel_collapsed
+
+    def notify_ai_unconfigured(self, _agent_type: str = "") -> None:
+        """Show the shared presentation-only feedback for all AI entry points."""
+        self.ai_banner.show()
+        self.ai_banner.raise_()
+
+    def open_bottom_tab(self, index: int) -> None:
+        """Select and expand the requested summary or note tab."""
+        if not 0 <= index < self.bottom_tabs.count():
+            return
+        self.bottom_tabs.setCurrentIndex(index)
+        self.set_bottom_panel_expanded(True)
+
+    def set_bottom_panel_expanded(self, expanded: bool) -> None:
         sizes = self.reader_splitter.sizes()
         if len(sizes) != 2:
             return
-        total = sum(sizes)
-        if expanded and sizes[1] < 140:
-            self.reader_splitter.setSizes([max(240, total - 200), 200])
-        elif not expanded:
-            self.reader_splitter.setSizes([max(240, total - 44), 44])
+        total = max(sum(sizes), self.height())
+        if expanded:
+            self._bottom_panel_collapsed = False
+            self.bottom_tabs.setMaximumHeight(16777215)
+            target = max(180, self._bottom_expanded_height)
+            self.reader_splitter.setSizes([max(240, total - target), target])
+            if self.bottom_tabs.currentIndex() == 0:
+                self.summary_panel.set_expanded(True, notify=False)
+        else:
+            self._bottom_panel_collapsed = True
+            if sizes[1] > 60:
+                self._bottom_expanded_height = sizes[1]
+            self.bottom_tabs.setMaximumHeight(self._bottom_collapsed_height)
+            self.reader_splitter.setSizes(
+                [max(240, total - self._bottom_collapsed_height), self._bottom_collapsed_height]
+            )
+            self.summary_panel.set_expanded(False, notify=False)
+
+    def set_focus_mode(self, enabled: bool) -> None:
+        """Collapse the bottom panel in focus mode and restore it on exit."""
+        if enabled:
+            sizes = self.reader_splitter.sizes()
+            height = sizes[1] if len(sizes) == 2 else self._bottom_collapsed_height
+            self._pre_focus_bottom_state = (
+                self.bottom_panel_collapsed,
+                height,
+                self.bottom_tabs.currentIndex(),
+            )
+            self.set_bottom_panel_expanded(False)
+        elif self._pre_focus_bottom_state is not None:
+            collapsed, height, tab_index = self._pre_focus_bottom_state
+            self.bottom_tabs.setCurrentIndex(tab_index)
+            if not collapsed:
+                self._bottom_expanded_height = height
+            self.set_bottom_panel_expanded(not collapsed)
+            self._pre_focus_bottom_state = None
 
     def _on_reader_splitter_moved(self, _position: int, _index: int) -> None:
         sizes = self.reader_splitter.sizes()

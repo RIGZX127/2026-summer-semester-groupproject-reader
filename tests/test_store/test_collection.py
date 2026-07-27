@@ -1,4 +1,5 @@
 """CollectionStore 单元测试。使用内存数据库 fixture。"""
+
 from __future__ import annotations
 
 import pytest

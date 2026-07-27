@@ -1,5 +1,6 @@
-﻿# core/feed/opml.py
+# core/feed/opml.py
 """OPML 导入导出：从 OPML XML 中提取 Feed URL，以及将 Feed 列表导出为 OPML。"""
+
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
@@ -41,11 +42,15 @@ def export_opml(feeds: list) -> str:
     title_el.text = "Mercury RSS Subscriptions"
     body = ET.SubElement(root, "body")
     for feed in feeds:
-        ET.SubElement(body, "outline", **{
-            "type": "rss",
-            "text": feed.title or feed.url,
-            "title": feed.title or feed.url,
-            "xmlUrl": feed.url,
-        })
+        ET.SubElement(
+            body,
+            "outline",
+            **{
+                "type": "rss",
+                "text": feed.title or feed.url,
+                "title": feed.title or feed.url,
+                "xmlUrl": feed.url,
+            },
+        )
     ET.indent(root, space="  ")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode")

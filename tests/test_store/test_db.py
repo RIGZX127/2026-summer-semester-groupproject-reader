@@ -1,5 +1,6 @@
 # tests/test_store/test_db.py
 """DatabaseManager 与 migrations 单元测试。"""
+
 from __future__ import annotations
 
 import os
@@ -49,9 +50,16 @@ def test_migration_v1_all_tables_exist(db: DatabaseManager) -> None:
     ).fetchall()
     table_names = {r[0] for r in rows}
     expected = {
-        "feeds", "entries", "content", "notes",
-        "tags", "entry_tags", "tag_aliases",
-        "agent_runs", "llm_usage", "app_settings",
+        "feeds",
+        "entries",
+        "content",
+        "notes",
+        "tags",
+        "entry_tags",
+        "tag_aliases",
+        "agent_runs",
+        "llm_usage",
+        "app_settings",
     }
     assert expected.issubset(table_names)
 
@@ -59,15 +67,14 @@ def test_migration_v1_all_tables_exist(db: DatabaseManager) -> None:
 def test_migration_idempotent(db: DatabaseManager) -> None:
     """二次迁移不抛异常，user_version 不变。"""
     from store import migrations
+
     migrations.migrate(db.connection)
     version = db.connection.execute("PRAGMA user_version").fetchone()[0]
     assert version == 2
 
 
 def test_required_indexes_exist(db: DatabaseManager) -> None:
-    rows = db.connection.execute(
-        "SELECT name FROM sqlite_master WHERE type='index'"
-    ).fetchall()
+    rows = db.connection.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
     index_names = {r[0] for r in rows}
     assert "idx_entries_feed_id" in index_names
     assert "idx_entries_published" in index_names

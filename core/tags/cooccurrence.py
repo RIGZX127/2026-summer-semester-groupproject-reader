@@ -71,9 +71,7 @@ class CooccurrenceEngine:
             if elapsed < self._CACHE_TTL:
                 return self._cache[tag_id][:limit]
 
-        result = await asyncio.get_running_loop().run_in_executor(
-            None, self._sync_compute, tag_id
-        )
+        result = await asyncio.get_running_loop().run_in_executor(None, self._sync_compute, tag_id)
 
         # Filter + sort
         filtered = [r for r in result if r.score >= min_score]

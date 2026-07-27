@@ -1,5 +1,6 @@
-﻿# tests/test_feed/test_parser.py
+# tests/test_feed/test_parser.py
 """Feed 解析器单元测试（使用本地 fixture XML，不发真实网络请求）。"""
+
 from __future__ import annotations
 
 import pathlib
@@ -68,12 +69,11 @@ async def test_parse_feed_missing_pubdate_is_none() -> None:
 @pytest.mark.asyncio
 async def test_parse_feed_http_error_raises_parse_error() -> None:
     import httpx
+
     mock_response = MagicMock()
     mock_response.status_code = 404
     mock_response.raise_for_status = MagicMock(
-        side_effect=httpx.HTTPStatusError(
-            "Not Found", request=MagicMock(), response=mock_response
-        )
+        side_effect=httpx.HTTPStatusError("Not Found", request=MagicMock(), response=mock_response)
     )
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)

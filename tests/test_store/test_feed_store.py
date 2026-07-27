@@ -1,5 +1,6 @@
-﻿# tests/test_store/test_feed_store.py
+# tests/test_store/test_feed_store.py
 """FeedStore 单元测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -62,9 +63,7 @@ async def test_delete_feed(feed_store: FeedStore) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_feed_cascades_to_entries(
-    feed_store: FeedStore, entry_store
-) -> None:
+async def test_delete_feed_cascades_to_entries(feed_store: FeedStore, entry_store) -> None:
     feed = await feed_store.add("https://example.com/feed")
     await entry_store.add(feed.id, "guid-1", title="Entry 1")
     await feed_store.delete(feed.id)

@@ -1,10 +1,11 @@
-﻿# core/reader/markdown.py
+# core/reader/markdown.py
 """HTML -> Markdown 转换：对 markdownify 的薄封装。
 
 同步函数，由 pipeline.py 用 run_in_executor 调用。
 预处理步骤：用 BeautifulSoup 彻底删除噪声标签（含其文本内容），
 再交给 markdownify 做结构转换。
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,7 +31,7 @@ def html_to_markdown(html: str) -> str:
         # 2. 用 BeautifulSoup 彻底删除噪声标签（含文本内容）
         soup = BeautifulSoup(html, "lxml")
         for tag in soup.find_all(_REMOVE_TAGS):
-            tag.decompose()   # decompose() 删除标签及其全部子节点
+            tag.decompose()  # decompose() 删除标签及其全部子节点
         clean_html = str(soup)
 
         # 3. markdownify 结构转换

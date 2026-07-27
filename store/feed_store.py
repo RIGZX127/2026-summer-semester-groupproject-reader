@@ -1,9 +1,10 @@
-﻿# store/feed_store.py
+# store/feed_store.py
 """FeedStore：订阅源（Feed）的数据访问层。
 
 所有阻塞的 sqlite3 调用均通过 run_in_executor 包装为协程，
 保证不阻塞 Qt 主线程。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,29 +60,21 @@ class FeedStore:
                     "INSERT INTO feeds (url, title, description) VALUES (?, ?, ?)",
                     (url, title, description),
                 )
-            row = self._conn.execute(
-                "SELECT * FROM feeds WHERE url = ?", (url,)
-            ).fetchone()
+            row = self._conn.execute("SELECT * FROM feeds WHERE url = ?", (url,)).fetchone()
             return _row_to_feed(row)
         except sqlite3.IntegrityError as exc:
             raise DuplicateFeedError(f"Feed URL already exists: {url}") from exc
 
     def _sync_get(self, feed_id: int) -> FeedRow | None:
-        row = self._conn.execute(
-            "SELECT * FROM feeds WHERE id = ?", (feed_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM feeds WHERE id = ?", (feed_id,)).fetchone()
         return _row_to_feed(row) if row else None
 
     def _sync_get_by_url(self, url: str) -> FeedRow | None:
-        row = self._conn.execute(
-            "SELECT * FROM feeds WHERE url = ?", (url,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM feeds WHERE url = ?", (url,)).fetchone()
         return _row_to_feed(row) if row else None
 
     def _sync_list_all(self) -> list[FeedRow]:
-        rows = self._conn.execute(
-            "SELECT * FROM feeds ORDER BY created_at ASC"
-        ).fetchall()
+        rows = self._conn.execute("SELECT * FROM feeds ORDER BY created_at ASC").fetchall()
         return [_row_to_feed(r) for r in rows]
 
     def _sync_update(self, feed_id: int, title: str | None, favicon_url: str | None) -> None:
@@ -97,9 +90,7 @@ class FeedStore:
         fields.append("updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')")
         values.append(feed_id)
         with self._conn:
-            self._conn.execute(
-                f"UPDATE feeds SET {', '.join(fields)} WHERE id = ?", values
-            )
+            self._conn.execute(f"UPDATE feeds SET {', '.join(fields)} WHERE id = ?", values)
 
     def _sync_delete(self, feed_id: int) -> None:
         with self._conn:
@@ -114,9 +105,7 @@ class FeedStore:
 
     # ── 公共 async API ─────────────────────────────────────────────────
 
-    def _sync_add_many(
-        self, items: list[tuple[str, str]]
-    ) -> list[tuple[int, str, str]]:
+    def _sync_add_many(self, items: list[tuple[str, str]]) -> list[tuple[int, str, str]]:
         """批量插入订阅源（单事务），跳过重复 URL。
 
         Returns:
@@ -141,32 +130,22 @@ class FeedStore:
             None, self._db.guarded, self._sync_add, url, title, description
         )
 
-    async def add_many(
-        self, items: list[tuple[str, str]]
-    ) -> list[tuple[int, str, str]]:
+    async def add_many(self, items: list[tuple[str, str]]) -> list[tuple[int, str, str]]:
         """批量添加订阅源（单事务中执行，避免线程竞争）。"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._db.guarded, self._sync_add_many, items
-        )
+        return await loop.run_in_executor(None, self._db.guarded, self._sync_add_many, items)
 
     async def get(self, feed_id: int) -> FeedRow | None:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._db.guarded, self._sync_get, feed_id
-        )
+        return await loop.run_in_executor(None, self._db.guarded, self._sync_get, feed_id)
 
     async def get_by_url(self, url: str) -> FeedRow | None:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._db.guarded, self._sync_get_by_url, url
-        )
+        return await loop.run_in_executor(None, self._db.guarded, self._sync_get_by_url, url)
 
     async def list_all(self) -> list[FeedRow]:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._db.guarded, self._sync_list_all
-        )
+        return await loop.run_in_executor(None, self._db.guarded, self._sync_list_all)
 
     async def update(
         self,
@@ -186,6 +165,4 @@ class FeedStore:
 
     async def unread_count(self, feed_id: int) -> int:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._db.guarded, self._sync_unread_count, feed_id
-        )
+        return await loop.run_in_executor(None, self._db.guarded, self._sync_unread_count, feed_id)

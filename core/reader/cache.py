@@ -1,9 +1,10 @@
-﻿# core/reader/cache.py
+# core/reader/cache.py
 """Reader 管线缓存层：版本号匹配逻辑。
 
 检查 content 表中缓存是否与当前算法版本一致；
 一致则命中，否则返回 None 触发重新抓取。
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
