@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import os
 import sys
 import traceback
@@ -22,19 +21,6 @@ from PySide6.QtWidgets import QApplication
 
 from app.app import MercuryApp
 from app.state import state
-
-
-def _preload_stdlib() -> None:
-    """Force-import stdlib modules commonly needed by LLM dependencies.
-
-    Loading these early ensures PyInstaller's import machinery caches them
-    correctly before any lazy imports from openai / httpx.
-    """
-    for mod in ("platform", "email", "json", "base64", "hashlib", "ssl"):
-        try:
-            importlib.import_module(mod)
-        except Exception:
-            pass
 
 
 def _fixup_qt_paths() -> None:
@@ -71,7 +57,6 @@ def _fixup_qt_paths() -> None:
 def main() -> int:
     print("[Mercury] Starting application...", flush=True)
     _fixup_qt_paths()
-    _preload_stdlib()
 
     app = QApplication(sys.argv)
     app.setOrganizationName("Mercury")
