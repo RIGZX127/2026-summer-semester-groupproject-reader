@@ -83,6 +83,7 @@ def _build_agent_runtime(
     from core.reader.pipeline import ReaderPipeline
     from core.tags.normalizer import TagNormalizer
     from store.agent_store import AgentStore
+    from store.usage_store import UsageStore
 
     runtime = AgentRuntime()
     pipeline = ReaderPipeline(db)
@@ -114,6 +115,7 @@ def _build_agent_runtime(
         if api_key:
             primary.set_api_key(api_key)
         router = LLMRouter(primary=primary)
+        router.set_usage_store(UsageStore(db))
     else:
         # 用一个占位 router——Agent 注册了但调用时会报错
         router = LLMRouter(
@@ -184,6 +186,7 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
     from core.tags.normalizer import TagNormalizer
     from store.agent_store import AgentStore
     from store.tag_store import TagStore
+    from store.usage_store import UsageStore
 
     base_url = settings.value(_PROVIDER_BASE_URL, "")
     model = settings.value(_PROVIDER_MODEL, "")
@@ -204,6 +207,7 @@ def reconfigure_agent_runtime(settings: QSettings) -> bool:
     if api_key:
         primary.set_api_key(api_key)
     router = LLMRouter(primary=primary)
+    router.set_usage_store(UsageStore(state.db))
 
     # ── 模板加载器 ────────────────────────────────────────────────────
     from app.paths import bundle_path

@@ -10,8 +10,12 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from store.usage_store import UsageStore
 
 SERVICE_NAME = "mercury-llm"
 
@@ -84,7 +88,11 @@ class LLMRouter:
         self._fallback = fallback
         self._primary_failures = 0
         self._using_fallback = False
-        self._usage_store = None  # 由调用方在初始化后注入
+        self._usage_store: UsageStore | None = None  # 由调用方在初始化后注入
+
+    def set_usage_store(self, store: UsageStore) -> None:
+        """注入 UsageStore 实例，用于自动记录每次 LLM 调用的 token 消耗。"""
+        self._usage_store = store
 
     def _get_active(self) -> ProviderConfig:
         if self._using_fallback and self._fallback:
@@ -97,8 +105,16 @@ class LLMRouter:
         *,
         temperature: float = 0.7,
         max_tokens: int = 2048,
+        agent_type: str = "unknown",
     ) -> AsyncGenerator[str, None]:
         """流式 LLM 调用。
+
+        Args:
+            messages: 对话消息列表。
+            temperature: 采样温度。
+            max_tokens: 最大输出 token 数。
+            agent_type: 调用方 Agent 类型（summary/translation/tagging），
+                        用于用量统计分类。
 
         Yields:
             每个 chunk 的文本增量（delta.content）。
@@ -108,6 +124,8 @@ class LLMRouter:
         """
         provider = self._get_active()
         api_key = provider.get_api_key() or ""
+        prompt_tokens = 0
+        completion_tokens = 0
 
         try:
             from openai import AsyncOpenAI
@@ -123,12 +141,31 @@ class LLMRouter:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
+                stream_options={"include_usage": True},
                 extra_headers=provider.extra_headers or None,
             )
             async for chunk in stream:
+                # 捕获最终的 usage 统计（位于 stream 的最后一个 chunk）
+                if hasattr(chunk, "usage") and chunk.usage:
+                    prompt_tokens = chunk.usage.prompt_tokens or 0
+                    completion_tokens = chunk.usage.completion_tokens or 0
+
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     yield delta.content
+
+            # 记录用量
+            if self._usage_store is not None and (prompt_tokens or completion_tokens):
+                try:
+                    await self._usage_store.record(
+                        provider=provider.name,
+                        model=provider.model,
+                        agent_type=agent_type,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                    )
+                except Exception:
+                    pass  # 用量记录失败不应中断主流程
 
             self._primary_failures = 0
             if self._using_fallback:
@@ -140,7 +177,10 @@ class LLMRouter:
                 self._using_fallback = True
                 self._primary_failures = 0
                 async for chunk in self.chat_stream(
-                    messages, temperature=temperature, max_tokens=max_tokens
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    agent_type=agent_type,
                 ):
                     yield chunk
                 return

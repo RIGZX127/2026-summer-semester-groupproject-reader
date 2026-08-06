@@ -631,6 +631,7 @@ class MainWindow(QMainWindow):
             if collection_id is None:
                 return
             await self._collection_store.add_entry(collection_id, entry_id)
+            await self.load_collections()
         except Exception as exc:  # noqa: BLE001
             self.statusBar().showMessage(self.tr("添加到收藏夹失败：{0}").format(str(exc)), 6000)
             return

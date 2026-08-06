@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 
-CURRENT_VERSION: int = 2
+CURRENT_VERSION: int = 3
 
 
 def migrate(conn: sqlite3.Connection) -> None:
@@ -19,6 +19,7 @@ def migrate(conn: sqlite3.Connection) -> None:
     migrations = [
         (1, _migration_v1),
         (2, _migration_v2),
+        (3, _migration_v3),
     ]
     for target_version, fn in migrations:
         if version < target_version:
@@ -58,7 +59,6 @@ def _migration_v1(conn: sqlite3.Connection) -> None:
     );
     CREATE INDEX IF NOT EXISTS idx_entries_feed_id    ON entries(feed_id);
     CREATE INDEX IF NOT EXISTS idx_entries_published  ON entries(published_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_entries_is_deleted ON entries(is_deleted);
 
     CREATE TABLE IF NOT EXISTS content (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,6 +125,16 @@ def _migration_v1(conn: sqlite3.Connection) -> None:
     );
     """)
 
+    # idx_entries_is_deleted 索引在 executescript 外单独创建：
+    # 如果 entries 表是由旧版本创建且不含 is_deleted 列，创建索引会失败；
+    # 该情况由 _migration_v3 补齐列和索引，所以这里静默忽略失败。
+    try:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entries_is_deleted ON entries(is_deleted)"
+        )
+    except sqlite3.OperationalError:
+        pass
+
 
 def _migration_v2(conn: sqlite3.Connection) -> None:
     """创建收藏夹表（collections + collection_entries）。"""
@@ -148,3 +158,21 @@ def _migration_v2(conn: sqlite3.Connection) -> None:
     CREATE INDEX IF NOT EXISTS idx_collection_entries_entry
         ON collection_entries(entry_id);
     """)
+
+
+def _migration_v3(conn: sqlite3.Connection) -> None:
+    """确保 entries 表包含 is_deleted 列（兼容早期开发版本升级）。
+
+    早期开发版本可能在 is_deleted 列加入 Schema 之前就创建了数据库。
+    CREATE TABLE IF NOT EXISTS 不会为已存在的表添加新列，
+    因此本迁移通过 ALTER TABLE 显式补齐。
+    """
+    # 检查列是否已存在（幂等）
+    cols = {row[1] for row in conn.execute("PRAGMA table_info('entries')").fetchall()}
+    if "is_deleted" not in cols:
+        conn.execute(
+            "ALTER TABLE entries ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entries_is_deleted ON entries(is_deleted)"
+        )

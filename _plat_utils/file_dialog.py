@@ -1,4 +1,4 @@
-# platform/file_dialog.py
+# _plat_utils/file_dialog.py
 """跨平台文件对话框适配器。
 
 封装 QFileDialog，对外暴露纯字符串接口。
@@ -6,7 +6,7 @@ Core 和 Store 模块不得直接依赖本模块——调用方（UI）先通过
 再将路径字符串传递给 Core Controller。
 
 使用方式:
-    from platform.file_dialog import select_export_directory
+    from _plat_utils.file_dialog import select_export_directory
     path = select_export_directory()
     if path:
         result = await digest_controller.export_single(entry_id, path)
